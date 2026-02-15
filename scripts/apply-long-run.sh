@@ -59,7 +59,8 @@ mkdir -p "$harness_dir"
 copy_template "${refs_dir}/initial-prompt-template.md" "${harness_dir}/initial_prompt.md"
 copy_template "${refs_dir}/coding-prompt-template.md" "${harness_dir}/coding_prompt.md"
 copy_template "${refs_dir}/feature-list-template.json" "${harness_dir}/feature-list.json"
-copy_template "${refs_dir}/claude-progress-template.md" "${harness_dir}/claude-progress.md"
+copy_template "${refs_dir}/bk-execution-handoff-template.md" "${harness_dir}/bk-execution-handoff.md"
+copy_template "${refs_dir}/bk-execution-table-template.json" "${harness_dir}/bk-execution-table.json"
 copy_template "${refs_dir}/init-sh-template.sh" "${harness_dir}/init.sh"
 
 if [[ -f "${harness_dir}/init.sh" ]]; then

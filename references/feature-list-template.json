@@ -10,34 +10,5 @@
     "done": "Implemented and validated",
     "blocked": "Cannot continue until unblocked"
   },
-  "features": [
-    {
-      "id": "F-001",
-      "title": "Define project baseline",
-      "status": "todo",
-      "priority": 1,
-      "description": "Set up baseline architecture, constraints, and first runnable slice.",
-      "dependencies": [],
-      "acceptance_criteria": [
-        "A minimal end-to-end path runs locally",
-        "Core constraints are documented"
-      ],
-      "updates": []
-    },
-    {
-      "id": "F-002",
-      "title": "Implement first production capability",
-      "status": "todo",
-      "priority": 2,
-      "description": "Deliver the first user-visible capability with tests.",
-      "dependencies": [
-        "F-001"
-      ],
-      "acceptance_criteria": [
-        "Capability works from user entrypoint",
-        "Tests cover expected and edge behavior"
-      ],
-      "updates": []
-    }
-  ]
+  "features": []
 }

@@ -1,9 +1,11 @@
 SKILL_NAME := bagakit-long-run
-CODEX_HOME ?= $(HOME)/.codex
-SKILL_DIR := $(CODEX_HOME)/skills/$(SKILL_NAME)
+BAGAKIT_HOME ?= $(HOME)/.bagakit
+SKILL_DIR := $(BAGAKIT_HOME)/skills/$(SKILL_NAME)
 PACKAGE := dist/$(SKILL_NAME).skill
+AGENT_CLI ?= bagakit-agent
+AGENT_FLAGS ?=
 
-.PHONY: install-skill package-skill clean codex-locale
+.PHONY: install-skill package-skill clean agent-locale
 
 install-skill:
 	rm -rf "$(SKILL_DIR)"
@@ -11,6 +13,7 @@ install-skill:
 	cp -R SKILL.md README.md references scripts "$(SKILL_DIR)/"
 	find "$(SKILL_DIR)/scripts" -type f -name "*.sh" -exec chmod +x {} +
 	chmod +x "$(SKILL_DIR)/scripts/bagakit_long_run_features.py"
+	chmod +x "$(SKILL_DIR)/scripts/bagakit_long_run_execution.py"
 	@echo "installed: $(SKILL_DIR)"
 
 package-skill: clean
@@ -21,7 +24,7 @@ package-skill: clean
 clean:
 	rm -rf dist
 
-codex-locale:
-	@echo "CODEX_HOME=$(PWD)/.codex"
-	@echo "Running codex with CODEX_HOME=$(PWD)/.codex"
-	codex -m gpt-5.3-codex -c model_reasoning_effort="xhigh" -c model_reasoning_summary_format=experimental --search --dangerously-bypass-approvals-and-sandbox
+agent-locale:
+	@echo "BAGAKIT_HOME=$(PWD)/.bagakit"
+	@echo "Running $(AGENT_CLI) with BAGAKIT_HOME=$(PWD)/.bagakit"
+	$(AGENT_CLI) $(AGENT_FLAGS)

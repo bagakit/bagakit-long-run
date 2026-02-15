@@ -1,0 +1,94 @@
+{
+  "version": "1",
+  "selection": {
+    "strategy": "highest_priority_first"
+  },
+  "adapters": [
+    {
+      "name": "bagakit-ft-default",
+      "kind": "bagakit-ft",
+      "enabled": true,
+      "root": ".",
+      "weight": 100,
+      "detect": {
+        "all": [
+          {
+            "path_exists": ".bagakit-ft/index/feats.json"
+          },
+          {
+            "json_has_key": {
+              "path": ".bagakit-ft/index/feats.json",
+              "key": "feats"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "openspec-default",
+      "kind": "openspec",
+      "enabled": true,
+      "root": ".",
+      "weight": 80,
+      "detect": {
+        "all": [
+          {
+            "path_exists": "openspec/changes"
+          },
+          {
+            "glob_count_ge": {
+              "pattern": "openspec/changes/*/tasks.md",
+              "min": 1
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "guidance": {
+    "global": {
+      "analyze_when": [
+        "No item is currently in_progress",
+        "Current item becomes blocked",
+        "Upstream rows changed since previous run"
+      ],
+      "plan_must_include": [
+        "Why this item now",
+        "Exact files to touch",
+        "Commands/checks to run",
+        "Verification or gate expectation",
+        "Risk and rollback note"
+      ]
+    },
+    "systems": {
+      "openspec": {
+        "analyze_when": [
+          "tasks.md has unchecked checklist items",
+          "proposal/scope changed since last pass"
+        ],
+        "plan_must_include": [
+          "change name and target capability",
+          "current checklist item from tasks.md",
+          "spec delta impact and validation command"
+        ],
+        "example": [
+          "Open proposal.md + tasks.md, pick first unchecked task, restate acceptance as executable checks."
+        ]
+      },
+      "bagakit-ft": {
+        "analyze_when": [
+          "feat has an in_progress task",
+          "gate_fail_streak or no_progress counters increase"
+        ],
+        "plan_must_include": [
+          "feat-id and task-id",
+          "worktree path and branch",
+          "gate command path and expected result"
+        ],
+        "example": [
+          "Use feat/task state as SSOT, execute only current task, then run task gate and prepare structured commit."
+        ]
+      }
+    }
+  }
+}

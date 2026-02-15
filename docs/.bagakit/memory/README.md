@@ -11,6 +11,6 @@ Filename rule:
 - Use kind-first: `<kind>-<topic>.md` (e.g. `gotcha-zsh-glob.md`).
 
 Recall workflow (mandatory before answering "what did we decide/why"):
-0) Resolve tooling: `export BAGAKIT_SKILL_DIR="${BAGAKIT_SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/bagakit-living-docs}"`
+0) Resolve tooling: `export BAGAKIT_SKILL_DIR="${BAGAKIT_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-living-docs}"`
 1) Search: `sh "$BAGAKIT_SKILL_DIR/scripts/bagakit_memory.sh" search '<query>' --root .`
 2) Quote: `sh "$BAGAKIT_SKILL_DIR/scripts/bagakit_memory.sh" get <path> --root . --from <line> --lines <n>`

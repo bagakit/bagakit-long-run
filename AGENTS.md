@@ -2,7 +2,7 @@
 This is a managed block. Do not edit content between START/END tags directly; it may be overwritten by re-running the Bagakit apply script. Edit the Bagakit templates/scripts instead.
 
 Tooling:
-- Resolve the installed skill dir as: `export BAGAKIT_SKILL_DIR="${BAGAKIT_SKILL_DIR:-${CODEX_HOME:-$HOME/.codex}/skills/bagakit-living-docs}"`
+- Resolve the installed skill dir as: `export BAGAKIT_SKILL_DIR="${BAGAKIT_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-living-docs}"`
 
 System-level requirements (must):
 - Read all system docs: `docs/must-*.md` (especially `docs/must-guidebook.md`, `docs/must-docs-taxonomy.md`, `docs/must-memory.md`).
