@@ -48,6 +48,16 @@
 - Tests: <pending>
 - Gate / Verification: <pending pass|fail + evidence>
 
+## Response Driver Snapshot
+
+Copy this block into the final coding response (fill concrete values):
+
+```text
+[[BAGAKIT]]
+- LivingDoc: <project-required note>
+- LongRun: Item=<Execution Item ID> | <Title>; Status=<in_progress|done|blocked>; Evidence=<commands/tests/verifications and pass/fail>; Next=sh .bagakit/long-run/init.sh
+```
+
 ## Risks / Open Questions
 
 - Risks: <risk or question>

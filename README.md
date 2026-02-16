@@ -22,6 +22,7 @@ Reference:
 3. Quality contract
 - Planning must include: why now, exact files, commands/checks, verification expectation, risk/rollback.
 - Coding pass cannot mark `done` without check evidence.
+- Detect/initializer/coding responses must end with `[[BAGAKIT]]` and include a peer line: `- LongRun: Item=...; Status=...; Evidence=...; Next=...`.
 
 ## What this repo contains
 
@@ -90,6 +91,7 @@ Run one initializer pass with:
 
 Output must be a high-quality single-item handoff in:
 - `.bagakit/long-run/bk-execution-handoff.md`
+- end the response with `[[BAGAKIT]]`, adding `- LongRun: ...` as a peer line to `- LivingDoc: ...`
 
 ### 6. Coding pass
 
@@ -100,6 +102,7 @@ Constraints:
 - exactly one execution item
 - commands/checks executed
 - update status to `done` or `blocked`
+- end the response with `[[BAGAKIT]]`, adding `- LongRun: ...` as a peer line to `- LivingDoc: ...`
 
 ### 7. Close the iteration
 

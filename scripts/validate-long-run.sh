@@ -73,7 +73,16 @@ if [[ -f "$handoff_file" ]]; then
   grep -q "^## Current Execution Item" "$handoff_file" || warn "handoff missing '## Current Execution Item' section"
   grep -q "^- Execution Item ID:" "$handoff_file" || warn "handoff missing '- Execution Item ID:' line"
   grep -q "^## Next Run" "$handoff_file" || warn "handoff missing '## Next Run' section"
+  grep -q "\[\[BAGAKIT\]\]" "$handoff_file" || warn "handoff missing [[BAGAKIT]] response snapshot"
+  grep -q "^- LongRun:" "$handoff_file" || warn "handoff missing '- LongRun:' response snapshot line"
 fi
+
+for f in "$detect_prompt" "$initial_prompt" "$coding_prompt"; do
+  if [[ -f "$f" ]]; then
+    grep -q "\[\[BAGAKIT\]\]" "$f" || warn "prompt missing [[BAGAKIT]] footer contract: ${f}"
+    grep -q "LongRun:" "$f" || warn "prompt missing '- LongRun:' footer contract: ${f}"
+  fi
+done
 
 if [[ ! -f "$agents_file" ]]; then
   fail "missing AGENTS.md: ${agents_file}"
@@ -81,6 +90,8 @@ else
   grep -q "<!-- BAGAKIT:LONGRUN:START -->" "$agents_file" || fail "missing BAGAKIT long-run managed block start in ${agents_file}"
   grep -q "<!-- BAGAKIT:LONGRUN:END -->" "$agents_file" || fail "missing BAGAKIT long-run managed block end in ${agents_file}"
   grep -q "sh .bagakit/long-run/init.sh" "$agents_file" || warn "AGENTS long-run block missing explicit init loop command"
+  grep -q "\[\[BAGAKIT\]\]" "$agents_file" || warn "AGENTS long-run block missing [[BAGAKIT]] response contract"
+  grep -q "LongRun:" "$agents_file" || warn "AGENTS long-run block missing '- LongRun:' response contract"
 fi
 
 if [[ -f "$execution_table_file" ]]; then

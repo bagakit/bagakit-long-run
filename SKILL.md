@@ -32,6 +32,7 @@ It is not responsible for:
 3. Quality over convenience:
 - no pass if execution-table is still draft.
 - no `done` without explicit checks and verification context.
+- every detect/initializer/coding response ends with `[[BAGAKIT]]` and a peer line `- LongRun: Item=...; Status=...; Evidence=...; Next=...`.
 
 ## Workflow
 
@@ -64,11 +65,13 @@ sh .bagakit/long-run/init.sh
 5) Initializer pass
 - Use `.bagakit/long-run/initial_prompt.md`
 - Produce high-quality `bk-execution-handoff.md`
+- End the response with `[[BAGAKIT]]` and include `- LongRun: ...`
 
 6) Coding pass
 - Use `.bagakit/long-run/coding_prompt.md`
 - Execute one item only
 - Update `feature-list.json` and `bk-execution-handoff.md`
+- End the response with `[[BAGAKIT]]` and include `- LongRun: ...`
 
 7) Verify and iterate
 

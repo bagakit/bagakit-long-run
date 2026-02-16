@@ -21,6 +21,8 @@ Your job is planning quality, not code implementation.
 3. Ensure `feature-list.json` has only one active `in_progress` item.
 4. Rewrite `bk-execution-handoff.md` for the coding pass.
 5. End with explicit "Next Command": `sh .bagakit/long-run/init.sh` after coding pass completes.
+6. End your response with `[[BAGAKIT]]` and include:
+   - `- LongRun: Item=<execution-item-id>; Status=in_progress|blocked; Evidence=handoff updated + why-now/acceptance/commands present; Next=sh .bagakit/long-run/init.sh`
 
 ## Handoff Quality Contract (must satisfy)
 

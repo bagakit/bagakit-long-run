@@ -15,6 +15,11 @@ Loop Protocol (every round):
 4. Run coding pass with `.bagakit/long-run/coding_prompt.md`, execute exactly one item, and update status/check evidence.
 5. Re-run `sh .bagakit/long-run/init.sh` to actively pick the next actionable item and continue.
 
+Response Driver (every long-run pass):
+- End detect/initializer/coding responses with the project footer block `[[BAGAKIT]]`.
+- Add long-run progress as a peer footer line (same level as `- LivingDoc: ...`):
+  - `- LongRun: Item=<id|detect>; Status=<ready|todo|in_progress|done|blocked>; Evidence=<validation/tests>; Next=<exact command>`
+
 Detect Rules:
 - Detect is agent-driven and rule-based; do not hardcode project-specific names in scripts.
 - Map upstream systems to adapters (`bagakit-ft`, `openspec`, `manual`) in `.bagakit/long-run/bk-execution-table.json`.

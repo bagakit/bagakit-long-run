@@ -26,6 +26,8 @@ You are the coding agent for this repository.
    - next-run suggestion
 7. End with explicit follow-up command:
    - `sh .bagakit/long-run/init.sh`
+8. End your response with `[[BAGAKIT]]` and include:
+   - `- LongRun: Item=<execution-item-id>; Status=done|blocked; Evidence=acceptance checks + gate/test outcomes; Next=sh .bagakit/long-run/init.sh`
 
 ## Constraints
 
@@ -33,3 +35,4 @@ You are the coding agent for this repository.
 - Do not mark `done` when checks are missing or failing.
 - Keep changes focused and reviewable.
 - If blocked, stop and document concrete unblock action.
+- Do not omit the `- LongRun: ...` footer line under `[[BAGAKIT]]`.
