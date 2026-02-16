@@ -20,6 +20,7 @@ Your job is planning quality, not code implementation.
    - otherwise pick the highest-priority actionable `todo` row
 3. Ensure `feature-list.json` has only one active `in_progress` item.
 4. Rewrite `bk-execution-handoff.md` for the coding pass.
+5. End with explicit "Next Command": `sh .bagakit/long-run/init.sh` after coding pass completes.
 
 ## Handoff Quality Contract (must satisfy)
 

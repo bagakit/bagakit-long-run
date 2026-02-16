@@ -5,9 +5,9 @@ This guidebook is a reading map. Keep it stable and index-style; do not duplicat
 ## How to Use
 - First-time: read in order.
 - Every work session: re-open the system docs below (do not rely on memory). System docs are `docs/must-*.md` (all `must-*` are mandatory reading).
-- Tooling: resolve the installed skill dir as `export BAGAKIT_SKILL_DIR="${BAGAKIT_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-living-docs}"`.
+- Tooling: resolve the installed skill dir as `export BAGAKIT_LIVING_DOCS_SKILL_DIR="${BAGAKIT_LIVING_DOCS_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-living-docs}"`.
 - If you adopt reusable-items governance: follow `docs/norms-maintaining-reusable-items.md` and update the relevant `docs/notes-reusable-items-*.md` catalogs when adding/deprecating reusable items.
-- If you adopt reusable-items catalogs: when you need to find a reusable item quickly, check the `notes-reusable-items-*.md` catalogs (or run `sh "$BAGAKIT_SKILL_DIR/scripts/bagakit_reusable_items.sh" search '<query>' --root .`).
+- If you adopt reusable-items catalogs: when you need to find a reusable item quickly, check the `notes-reusable-items-*.md` catalogs (or run `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_reusable_items.sh" search '<query>' --root .`).
 - If your project defines response directives (`directives:` in frontmatter, visible in `docs/must-sop.md`): apply them and include directive outputs in the `[[BAGAKIT]]` footer when applicable.
 - When in doubt: follow system docs first; prefer updating an existing canonical doc/memory entry over creating duplicates.
 - When answering “what did we decide/why/todos”: follow the recall workflow in `must-memory.md` (search → quote → answer).

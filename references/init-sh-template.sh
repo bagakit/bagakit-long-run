@@ -8,8 +8,31 @@ if [[ "$(basename "$bagakit_dir")" == ".bagakit" ]]; then
 else
   project_root="$bagakit_dir"
 fi
-skill_home="${BAGAKIT_HOME:-$HOME/.bagakit}"
-skill_dir="${BAGAKIT_LONG_RUN_SKILL_DIR:-${skill_home}/skills/bagakit-long-run}"
+resolve_skill_dir() {
+  if [[ -n "${BAGAKIT_LONG_RUN_SKILL_DIR:-}" ]]; then
+    printf '%s\n' "${BAGAKIT_LONG_RUN_SKILL_DIR}"
+    return 0
+  fi
+  if [[ -n "${BAGAKIT_HOME:-}" && -d "${BAGAKIT_HOME}/skills/bagakit-long-run" ]]; then
+    printf '%s\n' "${BAGAKIT_HOME}/skills/bagakit-long-run"
+    return 0
+  fi
+  if [[ -d "$HOME/.claude/skills/bagakit-long-run" ]]; then
+    printf '%s\n' "$HOME/.claude/skills/bagakit-long-run"
+    return 0
+  fi
+  if [[ -d "$HOME/.bagakit/skills/bagakit-long-run" ]]; then
+    printf '%s\n' "$HOME/.bagakit/skills/bagakit-long-run"
+    return 0
+  fi
+  if [[ -n "${BAGAKIT_HOME:-}" ]]; then
+    printf '%s\n' "${BAGAKIT_HOME}/skills/bagakit-long-run"
+    return 0
+  fi
+  printf '%s\n' "$HOME/.claude/skills/bagakit-long-run"
+}
+
+skill_dir="$(resolve_skill_dir)"
 validate_script="${skill_dir}/scripts/validate-long-run.sh"
 feature_tool="${skill_dir}/scripts/bagakit_long_run_features.py"
 execution_tool="${skill_dir}/scripts/bagakit_long_run_execution.py"
@@ -22,7 +45,7 @@ echo "== Bagakit Long Run: session init =="
 
 if [[ ! -f "$validate_script" ]]; then
   echo "error: missing validate script at ${validate_script}" >&2
-  echo "set BAGAKIT_LONG_RUN_SKILL_DIR to your installed skill path." >&2
+  echo "set BAGAKIT_LONG_RUN_SKILL_DIR to your installed skill path (example: \$HOME/.claude/skills/bagakit-long-run)." >&2
   exit 1
 fi
 
@@ -49,7 +72,10 @@ if command -v python3 >/dev/null 2>&1 && [[ -f "$execution_tool" && -f "$executi
 
   echo
   echo "== Guidance for next item =="
-  python3 "$execution_tool" guide "$project_root" --table "$execution_table"
+  if ! python3 "$execution_tool" guide "$project_root" --table "$execution_table"; then
+    echo "warn: no target system rows available for guidance." >&2
+    echo "next: add upstream tasks/spec items, run detect prompt, then re-run init." >&2
+  fi
 
   echo
   echo "== Sync feature list from execution rows =="

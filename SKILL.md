@@ -38,9 +38,11 @@ It is not responsible for:
 1) Apply harness files
 
 ```bash
-export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-long-run}"
+export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.claude}/skills/bagakit-long-run}"
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/apply-long-run.sh" .
 ```
+
+Apply also injects/updates a managed AGENTS block (`<!-- BAGAKIT:LONGRUN:START -->` ... `<!-- BAGAKIT:LONGRUN:END -->`) with loop-driving instructions.
 
 2) Run detect pass (Agent)
 - Use `.bagakit/long-run/detect_prompt.md`
@@ -74,6 +76,8 @@ sh .bagakit/long-run/init.sh
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_doctor.sh" .
 ```
+
+Then re-run `sh .bagakit/long-run/init.sh` to actively pick the next actionable item.
 
 ## Execution-table Contract
 

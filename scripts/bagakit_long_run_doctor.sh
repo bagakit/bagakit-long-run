@@ -29,6 +29,7 @@ warn() {
 echo "== doctor: validating harness =="
 if ! bash "${script_dir}/validate-long-run.sh" "$project_root"; then
   echo "doctor: validation failed; fix required errors first." >&2
+  echo "doctor: re-apply long-run if AGENTS managed block is missing: bash \"${script_dir}/apply-long-run.sh\" \"${project_root}\"" >&2
   echo "doctor: if detect quality is not ready, run .bagakit/long-run/detect_prompt.md first." >&2
   exit 1
 fi

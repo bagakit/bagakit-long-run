@@ -44,22 +44,22 @@ Optional:
 3) Delete or merge duplicates; keep one canonical location.
 
 Optional helper (automation):
-- Resolve tooling: `export BAGAKIT_SKILL_DIR="${BAGAKIT_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-living-docs}"`
-- Create inbox entry: `sh "$BAGAKIT_SKILL_DIR/scripts/bagakit_inbox.sh" new <kind> <topic> --root . --title '<title>'`
-- Promote inbox entry: `sh "$BAGAKIT_SKILL_DIR/scripts/bagakit_inbox.sh" promote docs/.bagakit/inbox/<file>.md --root .`
-- If the curated target already exists, merge into it: `sh "$BAGAKIT_SKILL_DIR/scripts/bagakit_inbox.sh" promote docs/.bagakit/inbox/<file>.md --root . --merge`
+- Resolve tooling: `export BAGAKIT_LIVING_DOCS_SKILL_DIR="${BAGAKIT_LIVING_DOCS_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-living-docs}"`
+- Create inbox entry: `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_inbox.sh" new <kind> <topic> --root . --title '<title>'`
+- Promote inbox entry: `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_inbox.sh" promote docs/.bagakit/inbox/<file>.md --root .`
+- If the curated target already exists, merge into it: `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_inbox.sh" promote docs/.bagakit/inbox/<file>.md --root . --merge`
 
 ## Recall Workflow (Mandatory)
 Before answering questions about prior work/decisions/dates/todos/preferences:
 1) Search:
-   - `sh "$BAGAKIT_SKILL_DIR/scripts/bagakit_memory.sh" search '<query>' --root .`
+   - `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_memory.sh" search '<query>' --root .`
 2) Read only the needed lines:
-   - `sh "$BAGAKIT_SKILL_DIR/scripts/bagakit_memory.sh" get <path> --root . --from <line> --lines <n>`
+   - `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_memory.sh" get <path> --root . --from <line> --lines <n>`
 3) Answer with citations (path + line numbers) when feasible.
 
 ## Optional Index (Faster Search)
 If you want faster, more consistent search results, build a local SQLite FTS index:
-- `python3 "$BAGAKIT_SKILL_DIR/scripts/bagakit_memory_index.py" index --root .`
+- `python3 "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_memory_index.py" index --root .`
 
 This writes to `docs/.bagakit/.generated/memory.sqlite` by default.
 Do not commit generated artifacts under `docs/.bagakit/.generated/` (a local `.gitignore` should handle this).

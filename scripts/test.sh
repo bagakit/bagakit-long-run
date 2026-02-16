@@ -18,6 +18,9 @@ bash "${script_dir}/apply-long-run.sh" "$project"
 [[ -f "${harness_dir}/bk-execution-handoff.md" ]]
 [[ -f "${harness_dir}/bk-execution-table.json" ]]
 [[ -f "${harness_dir}/detect_prompt.md" ]]
+[[ -f "${project}/AGENTS.md" ]]
+grep -q "<!-- BAGAKIT:LONGRUN:START -->" "${project}/AGENTS.md"
+grep -q "<!-- BAGAKIT:LONGRUN:END -->" "${project}/AGENTS.md"
 
 echo "[test] detect quality gate should fail when draft"
 if python3 "${script_dir}/bagakit_long_run_execution.py" validate-table "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then

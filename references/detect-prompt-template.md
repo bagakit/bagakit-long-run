@@ -26,6 +26,7 @@ Update `bk-execution-table.json` so that:
   - `bagakit-ft`
   - `openspec`
 - For any other system, use `kind=manual` and map rows manually in `rows[]`.
+- Do not hardcode one project/system name into scripts; keep mapping in this table.
 
 Manual rows must include:
 

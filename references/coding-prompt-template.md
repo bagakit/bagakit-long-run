@@ -24,6 +24,8 @@ You are the coding agent for this repository.
    - check/test outcomes
    - residual risks
    - next-run suggestion
+7. End with explicit follow-up command:
+   - `sh .bagakit/long-run/init.sh`
 
 ## Constraints
 

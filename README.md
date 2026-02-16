@@ -5,7 +5,7 @@ A Bagakit skill focused on driving long-running delivery loops.
 `long-run` is an execution driver:
 - it does not own worktree state
 - it does not replace upstream change systems
-- it enforces a repeatable loop: detect -> plan -> execute one item -> verify -> handoff
+- it enforces a repeatable loop: detect -> init -> execute one item -> verify -> continue
 
 Reference:
 - https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents
@@ -42,7 +42,7 @@ Restart your agent runtime after install.
 ### 1. Apply harness files
 
 ```bash
-export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-long-run}"
+export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.claude}/skills/bagakit-long-run}"
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/apply-long-run.sh" .
 ```
 
@@ -54,6 +54,7 @@ Creates:
 - `.bagakit/long-run/bk-execution-handoff.md`
 - `.bagakit/long-run/bk-execution-table.json`
 - `.bagakit/long-run/init.sh`
+- `AGENTS.md` (`BAGAKIT:LONGRUN` managed block)
 
 ### 2. Run detect pass (Agent)
 
@@ -107,7 +108,7 @@ bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_doctor.sh" .
 ```
 
-Then repeat from step 4.
+Then re-run `sh .bagakit/long-run/init.sh` and continue the next single-item round.
 
 ## Upstream Integration Modes
 
@@ -117,6 +118,8 @@ Built-in adapter kinds:
 
 Custom/any system:
 - `manual` adapter with curated `rows[]` in execution table.
+
+If no rows exist yet, `init.sh` will now print explicit next actions instead of hard-failing the whole flow.
 
 ## Useful Commands
 

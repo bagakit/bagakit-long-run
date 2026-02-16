@@ -13,6 +13,7 @@ fi
 project_root="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 harness_dir="${project_root}/.bagakit/long-run"
+agents_file="${project_root}/AGENTS.md"
 feature_file="${harness_dir}/feature-list.json"
 handoff_file="${harness_dir}/bk-execution-handoff.md"
 execution_table_file="${harness_dir}/bk-execution-table.json"
@@ -72,6 +73,14 @@ if [[ -f "$handoff_file" ]]; then
   grep -q "^## Current Execution Item" "$handoff_file" || warn "handoff missing '## Current Execution Item' section"
   grep -q "^- Execution Item ID:" "$handoff_file" || warn "handoff missing '- Execution Item ID:' line"
   grep -q "^## Next Run" "$handoff_file" || warn "handoff missing '## Next Run' section"
+fi
+
+if [[ ! -f "$agents_file" ]]; then
+  fail "missing AGENTS.md: ${agents_file}"
+else
+  grep -q "<!-- BAGAKIT:LONGRUN:START -->" "$agents_file" || fail "missing BAGAKIT long-run managed block start in ${agents_file}"
+  grep -q "<!-- BAGAKIT:LONGRUN:END -->" "$agents_file" || fail "missing BAGAKIT long-run managed block end in ${agents_file}"
+  grep -q "sh .bagakit/long-run/init.sh" "$agents_file" || warn "AGENTS long-run block missing explicit init loop command"
 fi
 
 if [[ -f "$execution_table_file" ]]; then
