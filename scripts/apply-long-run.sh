@@ -29,7 +29,8 @@ done
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 skill_root="$(cd "${script_dir}/.." && pwd)"
 refs_dir="${skill_root}/references"
-harness_dir="${project_root}/.bagakit-long-run"
+harness_dir="${project_root}/.bagakit/long-run"
+mkdir -p "${project_root}/.bagakit"
 
 copy_template() {
   local src="$1"
@@ -61,6 +62,7 @@ copy_template "${refs_dir}/coding-prompt-template.md" "${harness_dir}/coding_pro
 copy_template "${refs_dir}/feature-list-template.json" "${harness_dir}/feature-list.json"
 copy_template "${refs_dir}/bk-execution-handoff-template.md" "${harness_dir}/bk-execution-handoff.md"
 copy_template "${refs_dir}/bk-execution-table-template.json" "${harness_dir}/bk-execution-table.json"
+copy_template "${refs_dir}/detect-prompt-template.md" "${harness_dir}/detect_prompt.md"
 copy_template "${refs_dir}/init-sh-template.sh" "${harness_dir}/init.sh"
 
 if [[ -f "${harness_dir}/init.sh" ]]; then
@@ -77,7 +79,9 @@ EOF
 fi
 
 echo
+rel_harness="${harness_dir#${project_root}/}"
 echo "bagakit-long-run harness ready at: ${harness_dir}"
 echo "next:"
-echo "  sh .bagakit-long-run/init.sh"
-echo "  then run initializer -> coding loop"
+echo "  0) run detect pass with ${rel_harness}/detect_prompt.md and mark table detection.status=ready"
+echo "  1) sh ${rel_harness}/init.sh"
+echo "  2) run initializer -> coding loop"

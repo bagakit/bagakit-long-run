@@ -3,6 +3,13 @@
   "selection": {
     "strategy": "highest_priority_first"
   },
+  "detection": {
+    "status": "draft",
+    "last_reviewed_at": "",
+    "reviewed_by": "",
+    "upstream_systems": [],
+    "notes": "Run detect_prompt.md once, update adapters/guidance, then set status=ready."
+  },
   "adapters": [
     {
       "name": "bagakit-ft-default",
@@ -13,11 +20,11 @@
       "detect": {
         "all": [
           {
-            "path_exists": ".bagakit-ft/index/feats.json"
+            "path_exists": ".bagakit/ft-harness/index/feats.json"
           },
           {
             "json_has_key": {
-              "path": ".bagakit-ft/index/feats.json",
+              "path": ".bagakit/ft-harness/index/feats.json",
               "key": "feats"
             }
           }
@@ -43,6 +50,17 @@
           }
         ]
       }
+    },
+    {
+      "name": "manual-custom-default",
+      "kind": "manual",
+      "enabled": false,
+      "root": ".",
+      "weight": 60,
+      "detect": {
+        "all": []
+      },
+      "rows": []
     }
   ],
   "guidance": {
@@ -57,7 +75,9 @@
         "Exact files to touch",
         "Commands/checks to run",
         "Verification or gate expectation",
-        "Risk and rollback note"
+        "Risk and rollback note",
+        "Acceptance checklist with binary pass/fail criteria",
+        "Fallback or unblock action if checks fail"
       ]
     },
     "systems": {
@@ -87,6 +107,20 @@
         ],
         "example": [
           "Use feat/task state as SSOT, execute only current task, then run task gate and prepare structured commit."
+        ]
+      },
+      "manual": {
+        "analyze_when": [
+          "Custom upstream tracker has pending actionable items",
+          "Mapped manual rows drift from source tracker"
+        ],
+        "plan_must_include": [
+          "source tracker id and current state",
+          "binary acceptance checks copied into handoff",
+          "exact file list and run commands"
+        ],
+        "example": [
+          "Map one upstream ticket into one manual row with acceptance_criteria/files_to_touch/commands, then execute single-item pass."
         ]
       }
     }

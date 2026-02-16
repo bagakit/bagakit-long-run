@@ -1,23 +1,33 @@
 # bagakit-long-run
 
-A Bagakit Agent skill for building durable harnesses for long-running agent work.
+A Bagakit skill focused on driving long-running delivery loops.
 
-This skill turns initializer/coding loops into reusable project files, and can proactively couple to upstream execution systems via an execution table.
+`long-run` is an execution driver:
+- it does not own worktree state
+- it does not replace upstream change systems
+- it enforces a repeatable loop: detect -> plan -> execute one item -> verify -> handoff
 
-- stable prompts
-- machine-readable feature list
-- BK execution handoff
-- execution-table adapters (`bagakit-ft`, `openspec`)
-- repeatable pre-session checks
-
-Reference article:
+Reference:
 - https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents
+
+## Core Design
+
+1. Agent-first detect
+- Agent analyzes upstream systems and curates `.bagakit/long-run/bk-execution-table.json`.
+- Script validates quality (`validate-table`) before loop execution.
+
+2. Script-driven execution
+- Script normalizes rows, ranks actionable work, syncs `feature-list.json`, and enforces single-item progression.
+
+3. Quality contract
+- Planning must include: why now, exact files, commands/checks, verification expectation, risk/rollback.
+- Coding pass cannot mark `done` without check evidence.
 
 ## What this repo contains
 
-- `SKILL.md`: skill entrypoint loaded by Bagakit Agent
-- `references/`: templates copied into target projects
-- `scripts/`: apply/validate/doctor/test tooling
+- `SKILL.md`: skill entrypoint
+- `references/`: runtime templates
+- `scripts/`: apply/validate/doctor/execution helpers
 
 ## Install skill locally
 
@@ -25,73 +35,98 @@ Reference article:
 make install-skill BAGAKIT_HOME=~/.bagakit
 ```
 
-After install, restart Bagakit Agent so the skill is reloaded.
+Restart your agent runtime after install.
 
-## Apply harness to a target project
+## Step-by-step Usage
+
+### 1. Apply harness files
 
 ```bash
 export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-long-run}"
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/apply-long-run.sh" .
 ```
 
-This creates:
-- `.bagakit-long-run/initial_prompt.md`
-- `.bagakit-long-run/coding_prompt.md`
-- `.bagakit-long-run/feature-list.json`
-- `.bagakit-long-run/bk-execution-handoff.md`
-- `.bagakit-long-run/bk-execution-table.json`
-- `.bagakit-long-run/init.sh`
+Creates:
+- `.bagakit/long-run/detect_prompt.md`
+- `.bagakit/long-run/initial_prompt.md`
+- `.bagakit/long-run/coding_prompt.md`
+- `.bagakit/long-run/feature-list.json`
+- `.bagakit/long-run/bk-execution-handoff.md`
+- `.bagakit/long-run/bk-execution-table.json`
+- `.bagakit/long-run/init.sh`
 
-## Suggested work loop
+### 2. Run detect pass (Agent)
+
+Use `.bagakit/long-run/detect_prompt.md` to drive one detect pass:
+- discover upstream execution systems
+- update adapters/guidance in `bk-execution-table.json`
+- set `detection.status=ready`
+
+For unknown/custom upstream systems, use `kind=manual` rows.
+
+### 3. Validate execution table quality
 
 ```bash
-sh .bagakit-long-run/init.sh
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" validate-table .
 ```
 
-Then run:
-1. initializer agent with `.bagakit-long-run/initial_prompt.md`
-2. coding agent with `.bagakit-long-run/coding_prompt.md`
-3. `bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .`
-4. repeat
-
-Each coding session should complete exactly one execution item (or mark it blocked).
-
-## Execution-table bridge
+### 4. Start session init
 
 ```bash
+sh .bagakit/long-run/init.sh
+```
+
+This runs:
+- harness validation
+- execution-table quality validation
+- detect/plan/guide outputs
+- feature-list sync
+
+### 5. Initializer pass
+
+Run one initializer pass with:
+- `.bagakit/long-run/initial_prompt.md`
+
+Output must be a high-quality single-item handoff in:
+- `.bagakit/long-run/bk-execution-handoff.md`
+
+### 6. Coding pass
+
+Run one coding pass with:
+- `.bagakit/long-run/coding_prompt.md`
+
+Constraints:
+- exactly one execution item
+- commands/checks executed
+- update status to `done` or `blocked`
+
+### 7. Close the iteration
+
+```bash
+bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .
+bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_doctor.sh" .
+```
+
+Then repeat from step 4.
+
+## Upstream Integration Modes
+
+Built-in adapter kinds:
+- `bagakit-ft` (reads `.bagakit/ft-harness/index/feats.json`)
+- `openspec` (reads `openspec/changes/*`)
+
+Custom/any system:
+- `manual` adapter with curated `rows[]` in execution table.
+
+## Useful Commands
+
+```bash
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" validate-table .
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" detect .
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" plan . --limit 8
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" guide .
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" sync-feature-list .
 ```
-
-Default adapters:
-- `bagakit-ft` (`.bagakit-ft/index/feats.json`)
-- `openspec` (`openspec/changes/*`)
-
-## Universal Principles
-
-- Evidence over assumptions: detect emits signals and rule context, not hardcoded yes/no coupling.
-- Normalize before deciding: convert upstream systems into a shared execution-row model, then prioritize from that model.
-- Guidance over rigid policy: define analysis/planning checklists as rules, but keep final judgment with the agent.
-- Loose coupling by adapters: keep system-specific logic at adapter boundaries so long-run core remains stable.
-- Traceable execution intent: decisions and rationale should always be written to `bk-execution-handoff.md`.
-
-## Design Principle: Avoid Assumptions And Tight Coupling
-
-Core logic:
-- Agent systems are replaceable, but execution facts are not.
-- Therefore long-run should couple to explicit artifacts and rules, not tool names, model names, or legacy file names.
-
-Required practice:
-- Detect by rule sets in `bk-execution-table.json` (`path_exists`, `json_has_key`, `glob_count_ge`, etc.), not by guessing from naming conventions.
-- Keep coupling only at adapter boundaries (`bagakit-ft`, `openspec`, future adapters), and keep the core loop adapter-agnostic.
-- Use guidance rules to constrain planning quality, while preserving agent judgment for context-specific tradeoffs.
-
-Self-check checklist:
-- If a new integration is added, ask: "Can this be expressed as adapter rules instead of hardcoded branch logic?"
-- If a fallback is added, ask: "Is this a stable contract, or a hidden legacy assumption?"
-- If vendor-specific terms appear in runtime behavior, ask: "Can this be renamed to bagakit-neutral execution semantics?"
 
 ## Local verification
 

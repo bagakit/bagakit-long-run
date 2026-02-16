@@ -12,10 +12,11 @@ fi
 
 project_root="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-harness_dir="${project_root}/.bagakit-long-run"
+harness_dir="${project_root}/.bagakit/long-run"
 feature_file="${harness_dir}/feature-list.json"
 handoff_file="${harness_dir}/bk-execution-handoff.md"
 execution_table_file="${harness_dir}/bk-execution-table.json"
+detect_prompt="${harness_dir}/detect_prompt.md"
 initial_prompt="${harness_dir}/initial_prompt.md"
 coding_prompt="${harness_dir}/coding_prompt.md"
 init_script="${harness_dir}/init.sh"
@@ -35,10 +36,14 @@ warn() {
   warnings=$((warnings + 1))
 }
 
+if ! command -v python3 >/dev/null 2>&1; then
+  fail "python3 is required for long-run validation"
+fi
+
 if [[ ! -d "$harness_dir" ]]; then
   fail "missing harness dir: ${harness_dir}"
 else
-  for f in "$feature_file" "$initial_prompt" "$coding_prompt" "$init_script" "$execution_table_file"; do
+  for f in "$feature_file" "$initial_prompt" "$coding_prompt" "$init_script" "$execution_table_file" "$detect_prompt"; do
     if [[ ! -f "$f" ]]; then
       fail "missing required harness file: ${f}"
     fi
@@ -54,16 +59,12 @@ if [[ -f "$init_script" && ! -x "$init_script" ]]; then
 fi
 
 if [[ -f "$feature_file" ]]; then
-  if command -v python3 >/dev/null 2>&1; then
-    if [[ ! -f "$feature_tool" ]]; then
-      fail "missing feature tool: ${feature_tool}"
-    else
-      if ! python3 "$feature_tool" validate "$feature_file" >/dev/null; then
-        fail "feature list validation failed: ${feature_file}"
-      fi
-    fi
+  if [[ ! -f "$feature_tool" ]]; then
+    fail "missing feature tool: ${feature_tool}"
   else
-    warn "python3 not found; skipped JSON validation"
+    if ! python3 "$feature_tool" validate "$feature_file" >/dev/null; then
+      fail "feature list validation failed: ${feature_file}"
+    fi
   fi
 fi
 
@@ -74,16 +75,15 @@ if [[ -f "$handoff_file" ]]; then
 fi
 
 if [[ -f "$execution_table_file" ]]; then
-  if command -v python3 >/dev/null 2>&1; then
-    if [[ ! -f "$execution_tool" ]]; then
-      fail "missing execution tool: ${execution_tool}"
-    else
-      if ! python3 "$execution_tool" plan "$project_root" --table "$execution_table_file" >/dev/null; then
-        fail "execution table plan failed: ${execution_table_file}"
-      fi
-    fi
+  if [[ ! -f "$execution_tool" ]]; then
+    fail "missing execution tool: ${execution_tool}"
   else
-    warn "python3 not found; skipped execution-table validation"
+    if ! python3 "$execution_tool" validate-table "$project_root" --table "$execution_table_file" >/dev/null; then
+      fail "execution table quality validation failed: ${execution_table_file}"
+    fi
+    if ! python3 "$execution_tool" plan "$project_root" --table "$execution_table_file" >/dev/null; then
+      fail "execution table plan failed: ${execution_table_file}"
+    fi
   fi
 fi
 

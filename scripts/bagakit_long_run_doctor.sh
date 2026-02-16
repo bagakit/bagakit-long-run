@@ -12,7 +12,7 @@ fi
 
 project_root="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-harness_dir="${project_root}/.bagakit-long-run"
+harness_dir="${project_root}/.bagakit/long-run"
 feature_file="${harness_dir}/feature-list.json"
 handoff_file="${harness_dir}/bk-execution-handoff.md"
 execution_table_file="${harness_dir}/bk-execution-table.json"
@@ -29,6 +29,7 @@ warn() {
 echo "== doctor: validating harness =="
 if ! bash "${script_dir}/validate-long-run.sh" "$project_root"; then
   echo "doctor: validation failed; fix required errors first." >&2
+  echo "doctor: if detect quality is not ready, run .bagakit/long-run/detect_prompt.md first." >&2
   exit 1
 fi
 
@@ -77,8 +78,9 @@ fi
 
 echo
 echo "doctor complete: ${warnings} warning(s)"
+rel_harness="${harness_dir#${project_root}/}"
 echo "recommended loop:"
-echo "  1) sh .bagakit-long-run/init.sh"
+echo "  1) sh ${rel_harness}/init.sh"
 echo "  2) initializer pass"
 echo "  3) coding pass"
 echo "  4) validate + doctor"

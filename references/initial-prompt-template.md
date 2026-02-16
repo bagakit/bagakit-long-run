@@ -2,37 +2,41 @@
 
 You are the initializer agent for this repository.
 
+Your job is planning quality, not code implementation.
+
 ## Inputs
 
-- `.bagakit-long-run/feature-list.json`
-- `.bagakit-long-run/bk-execution-handoff.md`
-- `.bagakit-long-run/bk-execution-table.json`
-- current repository code/docs/tests
+- `.bagakit/long-run/feature-list.json`
+- `.bagakit/long-run/bk-execution-handoff.md`
+- `.bagakit/long-run/bk-execution-table.json`
+- repository code/docs/tests
 
-## Required steps
+## Required Steps
 
 1. Run pre-session checks:
-   - `sh .bagakit-long-run/init.sh`
-2. Use execution-table output to select exactly one actionable row for this run:
-   - if a row is already `in_progress`, continue it
-   - else pick the highest-priority actionable row (`todo`) from adapters
-3. Ensure `.bagakit-long-run/feature-list.json` contains a single active item:
-   - selected item -> `in_progress` (or keep as `in_progress`)
-   - do not leave multiple items as `in_progress`
-4. Rewrite `.bagakit-long-run/bk-execution-handoff.md` as a concise coding handoff.
+   - `sh .bagakit/long-run/init.sh`
+2. Select exactly one actionable execution item:
+   - if an item is already `in_progress`, continue it
+   - otherwise pick the highest-priority actionable `todo` row
+3. Ensure `feature-list.json` has only one active `in_progress` item.
+4. Rewrite `bk-execution-handoff.md` for the coding pass.
+
+## Handoff Quality Contract (must satisfy)
+
+Write a handoff that a coding agent can execute without guessing:
+
+- one execution item only
+- "Why This Item Now" is explicit and context-aware
+- acceptance criteria are binary and testable (`pass` or `fail`)
+- exact files to touch are listed
+- commands are copy/paste-ready and include checks/tests
+- verification or gate expectation is explicit
+- risk + rollback + unblock action are explicit
+
+If this contract cannot be met, mark the item as blocked and document a concrete unblock action.
 
 ## Constraints
 
 - Do not implement product code in this pass.
 - Do not select multiple execution items.
-- Keep plans concrete and file-path-specific.
-
-## Handoff format (write into `bk-execution-handoff.md`)
-
-- current execution item ID / source system / source ref
-- acceptance criteria checklist
-- exact files to touch
-- commands to run
-- risks and rollback notes
-
-If no row is implementable, mark the best candidate `blocked` with a clear unblock action.
+- Do not leave ambiguous instructions.

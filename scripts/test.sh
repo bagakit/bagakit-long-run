@@ -9,19 +9,43 @@ trap 'rm -rf "$tmp"' EXIT
 
 project="${tmp}/project"
 mkdir -p "$project"
+harness_dir="${project}/.bagakit/long-run"
+ft_harness_dir="${project}/.bagakit/ft-harness"
 
 echo "[test] apply harness"
 bash "${script_dir}/apply-long-run.sh" "$project"
 
-[[ -f "${project}/.bagakit-long-run/bk-execution-handoff.md" ]]
-[[ -f "${project}/.bagakit-long-run/bk-execution-table.json" ]]
+[[ -f "${harness_dir}/bk-execution-handoff.md" ]]
+[[ -f "${harness_dir}/bk-execution-table.json" ]]
+[[ -f "${harness_dir}/detect_prompt.md" ]]
+
+echo "[test] detect quality gate should fail when draft"
+if python3 "${script_dir}/bagakit_long_run_execution.py" validate-table "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then
+  echo "[test] expected validate-table to fail when detection.status=draft" >&2
+  exit 1
+fi
+
+echo "[test] mark detection review ready"
+python3 - <<PY
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+p = Path(r"${harness_dir}/bk-execution-table.json")
+data = json.loads(p.read_text(encoding="utf-8"))
+det = data.setdefault("detection", {})
+det["status"] = "ready"
+det["last_reviewed_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+det["reviewed_by"] = "test"
+det["upstream_systems"] = ["bagakit-ft", "openspec"]
+p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
 
 echo "[test] validate harness"
 bash "${script_dir}/validate-long-run.sh" "$project"
 
 echo "[test] execution adapters: seed bagakit-ft + openspec"
-mkdir -p "${project}/.bagakit-ft/index" "${project}/.bagakit-ft/feats/f-20260215-sync-sample" "${project}/openspec/changes/add-health-check"
-cat > "${project}/.bagakit-ft/index/feats.json" <<'EOF'
+mkdir -p "${ft_harness_dir}/index" "${ft_harness_dir}/feats/f-20260215-sync-sample" "${project}/openspec/changes/add-health-check"
+cat > "${ft_harness_dir}/index/feats.json" <<'EOF'
 {
   "version": 1,
   "feats": [
@@ -33,7 +57,7 @@ cat > "${project}/.bagakit-ft/index/feats.json" <<'EOF'
   ]
 }
 EOF
-cat > "${project}/.bagakit-ft/feats/f-20260215-sync-sample/state.json" <<'EOF'
+cat > "${ft_harness_dir}/feats/f-20260215-sync-sample/state.json" <<'EOF'
 {
   "feat_id": "f-20260215-sync-sample",
   "title": "Sync Sample Feat",
@@ -42,7 +66,7 @@ cat > "${project}/.bagakit-ft/feats/f-20260215-sync-sample/state.json" <<'EOF'
   "worktree_path": ".worktrees/wt-f-20260215-sync-sample"
 }
 EOF
-cat > "${project}/.bagakit-ft/feats/f-20260215-sync-sample/tasks.json" <<'EOF'
+cat > "${ft_harness_dir}/feats/f-20260215-sync-sample/tasks.json" <<'EOF'
 {
   "tasks": [
     {
@@ -62,10 +86,10 @@ cat > "${project}/openspec/changes/add-health-check/tasks.md" <<'EOF'
 EOF
 
 echo "[test] execution plan + sync"
-python3 "${script_dir}/bagakit_long_run_execution.py" detect "${project}" --table "${project}/.bagakit-long-run/bk-execution-table.json" >/dev/null
-python3 "${script_dir}/bagakit_long_run_execution.py" plan "${project}" --table "${project}/.bagakit-long-run/bk-execution-table.json" >/dev/null
-python3 "${script_dir}/bagakit_long_run_execution.py" guide "${project}" --table "${project}/.bagakit-long-run/bk-execution-table.json" >/dev/null
-python3 "${script_dir}/bagakit_long_run_execution.py" sync-feature-list "${project}" --table "${project}/.bagakit-long-run/bk-execution-table.json" --feature-file "${project}/.bagakit-long-run/feature-list.json" >/dev/null
+python3 "${script_dir}/bagakit_long_run_execution.py" detect "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 "${script_dir}/bagakit_long_run_execution.py" plan "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 "${script_dir}/bagakit_long_run_execution.py" guide "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 "${script_dir}/bagakit_long_run_execution.py" sync-feature-list "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" >/dev/null
 
 echo "[test] doctor"
 bash "${script_dir}/bagakit_long_run_doctor.sh" "$project"
@@ -74,6 +98,6 @@ echo "[test] idempotent apply"
 bash "${script_dir}/apply-long-run.sh" "$project"
 
 echo "[test] python tool summary"
-python3 "${script_dir}/bagakit_long_run_features.py" summary "${project}/.bagakit-long-run/feature-list.json" >/dev/null
+python3 "${script_dir}/bagakit_long_run_features.py" summary "${harness_dir}/feature-list.json" >/dev/null
 
 echo "[test] pass (${skill_root})"

@@ -4,28 +4,30 @@ You are the coding agent for this repository.
 
 ## Inputs
 
-- `.bagakit-long-run/feature-list.json`
-- `.bagakit-long-run/bk-execution-handoff.md`
-- `.bagakit-long-run/bk-execution-table.json`
+- `.bagakit/long-run/feature-list.json`
+- `.bagakit/long-run/bk-execution-handoff.md`
+- `.bagakit/long-run/bk-execution-table.json`
 - repository codebase
 
-## Required steps
+## Required Steps
 
-1. Read current execution item from `bk-execution-handoff.md`.
+1. Read the current execution item from `bk-execution-handoff.md`.
 2. Implement exactly one execution item in this pass.
-3. Run relevant checks/tests for touched scope.
-4. Update `.bagakit-long-run/feature-list.json`:
-   - `done` if acceptance criteria are met
-   - `blocked` with reason if not finishable now
-5. Update `.bagakit-long-run/bk-execution-handoff.md`:
+3. Run all commands listed under "Commands To Run".
+4. Evaluate acceptance criteria as binary pass/fail.
+5. Update `.bagakit/long-run/feature-list.json`:
+   - `done` only if acceptance criteria pass
+   - otherwise `blocked` with explicit unblock action
+6. Update `.bagakit/long-run/bk-execution-handoff.md`:
    - files changed
    - commands run
-   - test outcomes
-   - open risks
+   - check/test outcomes
+   - residual risks
    - next-run suggestion
 
 ## Constraints
 
 - Do not start a second execution item in the same pass.
+- Do not mark `done` when checks are missing or failing.
 - Keep changes focused and reviewable.
-- If blocked, stop and document explicit unblock action.
+- If blocked, stop and document concrete unblock action.

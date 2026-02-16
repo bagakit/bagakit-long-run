@@ -2,7 +2,12 @@
 set -euo pipefail
 
 harness_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-project_root="$(cd "${harness_dir}/.." && pwd)"
+bagakit_dir="$(cd "${harness_dir}/.." && pwd)"
+if [[ "$(basename "$bagakit_dir")" == ".bagakit" ]]; then
+  project_root="$(cd "${bagakit_dir}/.." && pwd)"
+else
+  project_root="$bagakit_dir"
+fi
 skill_home="${BAGAKIT_HOME:-$HOME/.bagakit}"
 skill_dir="${BAGAKIT_LONG_RUN_SKILL_DIR:-${skill_home}/skills/bagakit-long-run}"
 validate_script="${skill_dir}/scripts/validate-long-run.sh"
@@ -11,6 +16,7 @@ execution_tool="${skill_dir}/scripts/bagakit_long_run_execution.py"
 feature_file="${harness_dir}/feature-list.json"
 handoff_file="${harness_dir}/bk-execution-handoff.md"
 execution_table="${harness_dir}/bk-execution-table.json"
+detect_prompt="${harness_dir}/detect_prompt.md"
 
 echo "== Bagakit Long Run: session init =="
 
@@ -24,20 +30,30 @@ bash "$validate_script" "$project_root"
 
 if command -v python3 >/dev/null 2>&1 && [[ -f "$execution_tool" && -f "$execution_table" ]]; then
   echo
+  echo "== Execution table quality =="
+  if ! python3 "$execution_tool" validate-table "$project_root" --table "$execution_table"; then
+    echo "error: execution table is not ready for long-run." >&2
+    if [[ -f "$detect_prompt" ]]; then
+      echo "next: run agent detect pass with ${detect_prompt}" >&2
+    fi
+    exit 1
+  fi
+
+  echo
   echo "== Execution adapters =="
-  python3 "$execution_tool" detect "$project_root" --table "$execution_table" || true
+  python3 "$execution_tool" detect "$project_root" --table "$execution_table"
 
   echo
   echo "== Execution rows (top) =="
-  python3 "$execution_tool" plan "$project_root" --table "$execution_table" --limit 8 || true
+  python3 "$execution_tool" plan "$project_root" --table "$execution_table" --limit 8
 
   echo
   echo "== Guidance for next item =="
-  python3 "$execution_tool" guide "$project_root" --table "$execution_table" || true
+  python3 "$execution_tool" guide "$project_root" --table "$execution_table"
 
   echo
   echo "== Sync feature list from execution rows =="
-  python3 "$execution_tool" sync-feature-list "$project_root" --table "$execution_table" --feature-file "$feature_file" || true
+  python3 "$execution_tool" sync-feature-list "$project_root" --table "$execution_table" --feature-file "$feature_file"
 fi
 
 if command -v python3 >/dev/null 2>&1 && [[ -f "$feature_tool" ]]; then
@@ -57,7 +73,9 @@ else
 fi
 
 echo
+rel_harness="${harness_dir#${project_root}/}"
 echo "Use:"
-echo "1) .bagakit-long-run/initial_prompt.md for initializer pass"
-echo "2) .bagakit-long-run/coding_prompt.md for coding pass"
+echo "0) ${rel_harness}/detect_prompt.md (when adding/changing upstream systems)"
+echo "1) ${rel_harness}/initial_prompt.md for initializer pass"
+echo "2) ${rel_harness}/coding_prompt.md for coding pass"
 echo "3) update ${handoff_file} every pass"

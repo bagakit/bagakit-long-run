@@ -18,8 +18,8 @@
 
 ## Acceptance Criteria
 
-- [ ] <criterion 1>
-- [ ] <criterion 2>
+- [ ] <criterion 1, binary pass/fail>
+- [ ] <criterion 2, binary pass/fail>
 
 ## Execution Plan
 
@@ -34,18 +34,25 @@
 ## Commands To Run
 
 ```bash
-# add commands used by coding pass
+# add copy/paste commands (build/test/gate)
 ```
+
+## Expected Verification
+
+- Gate / verification command: <command>
+- Expected result: <what pass looks like>
 
 ## Results
 
 - Summary: <pending>
 - Tests: <pending>
-- Gate / Verification: <pending>
+- Gate / Verification: <pending pass|fail + evidence>
 
 ## Risks / Open Questions
 
-- <risk or question>
+- Risks: <risk or question>
+- Rollback: <rollback approach if this pass fails>
+- Unblock Action (if blocked): <explicit next action>
 
 ## Next Run
 

@@ -23,10 +23,28 @@ STATUS_RANK = {
     "blocked": 2,
     "done": 3,
 }
+LONG_RUN_DIR_NEW = Path(".bagakit") / "long-run"
+FT_HARNESS_DIR_NEW = Path(".bagakit") / "ft-harness"
+KNOWN_ADAPTER_KINDS = {"bagakit-ft", "openspec", "manual"}
+DETECTION_STATUS = {"draft", "ready"}
+QUALITY_REQUIRED_PLAN_ITEMS = [
+    "Why this item now",
+    "Exact files to touch",
+    "Commands/checks to run",
+    "Verification or gate expectation",
+    "Risk and rollback note",
+]
 
 DEFAULT_TABLE: Dict[str, Any] = {
     "version": "1",
     "selection": {"strategy": "highest_priority_first"},
+    "detection": {
+        "status": "draft",
+        "last_reviewed_at": "",
+        "reviewed_by": "",
+        "upstream_systems": [],
+        "notes": "Run detect_prompt.md once, update adapters/guidance, then set status=ready.",
+    },
     "adapters": [
         {
             "name": "bagakit-ft-default",
@@ -36,8 +54,8 @@ DEFAULT_TABLE: Dict[str, Any] = {
             "weight": 100,
             "detect": {
                 "all": [
-                    {"path_exists": ".bagakit-ft/index/feats.json"},
-                    {"json_has_key": {"path": ".bagakit-ft/index/feats.json", "key": "feats"}},
+                    {"path_exists": ".bagakit/ft-harness/index/feats.json"},
+                    {"json_has_key": {"path": ".bagakit/ft-harness/index/feats.json", "key": "feats"}},
                 ]
             },
         },
@@ -54,6 +72,17 @@ DEFAULT_TABLE: Dict[str, Any] = {
                 ]
             },
         },
+        {
+            "name": "manual-custom-default",
+            "kind": "manual",
+            "enabled": False,
+            "root": ".",
+            "weight": 60,
+            "detect": {
+                "all": []
+            },
+            "rows": [],
+        },
     ],
     "guidance": {
         "global": {
@@ -68,6 +97,8 @@ DEFAULT_TABLE: Dict[str, Any] = {
                 "Commands/checks to run",
                 "Verification or gate expectation",
                 "Risk and rollback note",
+                "Acceptance checklist with binary pass/fail criteria",
+                "Fallback or unblock action if checks fail",
             ],
         },
         "systems": {
@@ -99,9 +130,27 @@ DEFAULT_TABLE: Dict[str, Any] = {
                     "Use feat/task state as SSOT, execute only current task, then run task gate and prepare structured commit.",
                 ],
             },
+            "manual": {
+                "analyze_when": [
+                    "Custom upstream tracker has pending actionable items",
+                    "Mapped manual rows drift from source tracker",
+                ],
+                "plan_must_include": [
+                    "source tracker id and current state",
+                    "binary acceptance checks copied into handoff",
+                    "exact file list and run commands",
+                ],
+                "example": [
+                    "Map one upstream ticket into one manual row with acceptance_criteria/files_to_touch/commands, then execute single-item pass.",
+                ],
+            },
         },
     },
 }
+
+
+def resolve_long_run_dir(project_root: Path) -> Path:
+    return project_root / LONG_RUN_DIR_NEW
 
 
 def utc_now() -> str:
@@ -136,6 +185,17 @@ def parse_int(value: Any, default: int) -> int:
         return default
 
 
+def to_str_list(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    out: List[str] = []
+    for item in value:
+        s = str(item).strip()
+        if s:
+            out.append(s)
+    return out
+
+
 def uniq_strs(items: List[str]) -> List[str]:
     out: List[str] = []
     seen: set[str] = set()
@@ -152,12 +212,12 @@ def load_execution_table(project_root: Path, table_arg: str | None) -> Tuple[Pat
     if table_arg:
         table_path = Path(table_arg)
     else:
-        table_path = project_root / ".bagakit-long-run" / "bk-execution-table.json"
+        table_path = resolve_long_run_dir(project_root) / "bk-execution-table.json"
 
-    if table_path.exists():
-        data = load_json(table_path)
-        return table_path, data
-    return None, DEFAULT_TABLE
+    if not table_path.exists():
+        raise SystemExit(f"error: execution table not found: {table_path}")
+    data = load_json(table_path)
+    return table_path, data
 
 
 def adapter_root(project_root: Path, adapter: Dict[str, Any]) -> Path:
@@ -337,7 +397,8 @@ def pick_feat_task(tasks: List[Dict[str, Any]]) -> Dict[str, Any] | None:
 
 def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict[str, Any]]:
     root = adapter_root(project_root, adapter)
-    index_file = root / ".bagakit-ft" / "index" / "feats.json"
+    harness_dir = root / FT_HARNESS_DIR_NEW
+    index_file = harness_dir / "index" / "feats.json"
     if not index_file.exists():
         return []
 
@@ -356,7 +417,7 @@ def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict
         if not feat_id:
             continue
 
-        feat_dir = root / ".bagakit-ft" / "feats" / feat_id
+        feat_dir = harness_dir / "feats" / feat_id
         state_file = feat_dir / "state.json"
         tasks_file = feat_dir / "tasks.json"
         if not state_file.exists() or not tasks_file.exists():
@@ -508,12 +569,55 @@ def collect_openspec(project_root: Path, adapter: Dict[str, Any]) -> List[Dict[s
     return rows
 
 
+def collect_manual(project_root: Path, adapter: Dict[str, Any]) -> List[Dict[str, Any]]:
+    base_weight = parse_int(adapter.get("weight"), 60)
+    adapter_name = str(adapter.get("name") or "manual")
+    raw_rows = adapter.get("rows", [])
+    if not isinstance(raw_rows, list):
+        return []
+
+    rows: List[Dict[str, Any]] = []
+    for idx, raw in enumerate(raw_rows, start=1):
+        if not isinstance(raw, dict):
+            continue
+        row_id = str(raw.get("id", "")).strip()
+        title = str(raw.get("title", "")).strip()
+        status = str(raw.get("status", "todo")).strip()
+        if not row_id or not title:
+            continue
+        if status not in ROW_STATUS:
+            status = "todo"
+
+        source_ref = str(raw.get("source_ref", "")).strip() or f"{adapter_name}:row:{idx}"
+        row = {
+            "id": row_id,
+            "system": str(raw.get("system", "")).strip() or adapter_name,
+            "adapter": adapter_name,
+            "status": status,
+            "priority": parse_int(raw.get("priority"), idx),
+            "weight": parse_int(raw.get("weight"), base_weight),
+            "title": title,
+            "source_ref": source_ref,
+            "actionable": status in {"todo", "in_progress"},
+            "why_now": str(raw.get("why_now", "")).strip(),
+            "acceptance_criteria": to_str_list(raw.get("acceptance_criteria")),
+            "files_to_touch": to_str_list(raw.get("files_to_touch")),
+            "commands": to_str_list(raw.get("commands")),
+            "risks": to_str_list(raw.get("risks")),
+        }
+        rows.append(row)
+
+    return rows
+
+
 def collect_rows_for_adapter(project_root: Path, adapter: Dict[str, Any]) -> List[Dict[str, Any]]:
     kind = str(adapter.get("kind", "")).strip()
     if kind == "bagakit-ft":
         return collect_bagakit_ft(project_root, adapter)
     if kind == "openspec":
         return collect_openspec(project_root, adapter)
+    if kind == "manual":
+        return collect_manual(project_root, adapter)
     return []
 
 
@@ -552,6 +656,164 @@ def truncate_rows(rows: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]
     return rows[:limit]
 
 
+def validate_table_quality(table: Dict[str, Any], *, allow_draft: bool = False) -> List[str]:
+    issues: List[str] = []
+
+    detection = table.get("detection")
+    if not isinstance(detection, dict):
+        issues.append("missing object: detection")
+    else:
+        status = str(detection.get("status", "")).strip()
+        if status not in DETECTION_STATUS:
+            issues.append(f"detection.status must be one of {sorted(DETECTION_STATUS)}")
+        if not allow_draft and status != "ready":
+            issues.append("detection.status must be 'ready' (run detect prompt and update table first)")
+        if status == "ready":
+            if not str(detection.get("last_reviewed_at", "")).strip():
+                issues.append("detection.last_reviewed_at is required when status=ready")
+            if not str(detection.get("reviewed_by", "")).strip():
+                issues.append("detection.reviewed_by is required when status=ready")
+            systems = to_str_list(detection.get("upstream_systems"))
+            if not systems:
+                issues.append("detection.upstream_systems must list at least one detected upstream system when status=ready")
+
+    adapters = table.get("adapters")
+    if not isinstance(adapters, list) or not adapters:
+        issues.append("adapters must be a non-empty array")
+        return issues
+
+    enabled_adapters: List[Dict[str, Any]] = []
+    enabled_kinds: set[str] = set()
+    for idx, adapter in enumerate(adapters):
+        if not isinstance(adapter, dict):
+            issues.append(f"adapters[{idx}] must be an object")
+            continue
+
+        name = str(adapter.get("name", "")).strip()
+        kind = str(adapter.get("kind", "")).strip()
+        enabled = bool(adapter.get("enabled", True))
+
+        if not name:
+            issues.append(f"adapters[{idx}] missing name")
+        if not kind:
+            issues.append(f"adapters[{idx}] missing kind")
+        if enabled and kind not in KNOWN_ADAPTER_KINDS:
+            issues.append(
+                f"adapters[{idx}] kind={kind!r} is unsupported; use one of {sorted(KNOWN_ADAPTER_KINDS)} "
+                "or implement a new collector"
+            )
+
+        if not enabled:
+            continue
+
+        enabled_adapters.append(adapter)
+        enabled_kinds.add(kind)
+
+        detect = adapter.get("detect")
+        if not isinstance(detect, dict):
+            issues.append(f"adapters[{idx}] detect must be an object")
+            continue
+        if "all" not in detect and "any" not in detect:
+            issues.append(f"adapters[{idx}] detect must define 'all' or 'any' rules")
+            continue
+        key = "all" if "all" in detect else "any"
+        rules = detect.get(key)
+        if not isinstance(rules, list):
+            issues.append(f"adapters[{idx}] detect.{key} must be a list")
+
+        if kind == "manual":
+            rows = adapter.get("rows")
+            if not isinstance(rows, list) or not rows:
+                issues.append(f"adapters[{idx}] manual adapter requires non-empty rows[]")
+            else:
+                for ridx, row in enumerate(rows):
+                    prefix = f"adapters[{idx}].rows[{ridx}]"
+                    if not isinstance(row, dict):
+                        issues.append(f"{prefix} must be an object")
+                        continue
+                    for field in ("id", "title", "source_ref", "why_now"):
+                        if not str(row.get(field, "")).strip():
+                            issues.append(f"{prefix} missing required field: {field}")
+                    status = str(row.get("status", "")).strip()
+                    if status not in ROW_STATUS:
+                        issues.append(f"{prefix} status must be one of {sorted(ROW_STATUS)}")
+                    if len(to_str_list(row.get("acceptance_criteria"))) < 2:
+                        issues.append(f"{prefix} acceptance_criteria must have at least 2 items")
+                    if len(to_str_list(row.get("files_to_touch"))) < 1:
+                        issues.append(f"{prefix} files_to_touch must have at least 1 path")
+                    if len(to_str_list(row.get("commands"))) < 1:
+                        issues.append(f"{prefix} commands must have at least 1 command")
+
+    if not enabled_adapters:
+        issues.append("at least one adapter must be enabled")
+
+    guidance = table.get("guidance")
+    if not isinstance(guidance, dict):
+        issues.append("guidance must be an object")
+        return issues
+
+    global_guidance = guidance.get("global")
+    if not isinstance(global_guidance, dict):
+        issues.append("guidance.global must be an object")
+    else:
+        analyze = to_str_list(global_guidance.get("analyze_when"))
+        plan = to_str_list(global_guidance.get("plan_must_include"))
+        if len(analyze) < 3:
+            issues.append("guidance.global.analyze_when must have at least 3 items")
+        if len(plan) < 5:
+            issues.append("guidance.global.plan_must_include must have at least 5 items")
+        for item in QUALITY_REQUIRED_PLAN_ITEMS:
+            if item not in plan:
+                issues.append(f"guidance.global.plan_must_include missing required item: {item}")
+
+    systems = guidance.get("systems")
+    if not isinstance(systems, dict):
+        issues.append("guidance.systems must be an object")
+        return issues
+
+    for kind in sorted(enabled_kinds):
+        entry = systems.get(kind)
+        if not isinstance(entry, dict):
+            issues.append(f"guidance.systems.{kind} must be defined for enabled adapter kind={kind}")
+            continue
+        if len(to_str_list(entry.get("analyze_when"))) < 1:
+            issues.append(f"guidance.systems.{kind}.analyze_when must have at least 1 item")
+        if len(to_str_list(entry.get("plan_must_include"))) < 3:
+            issues.append(f"guidance.systems.{kind}.plan_must_include must have at least 3 items")
+        if len(to_str_list(entry.get("example"))) < 1:
+            issues.append(f"guidance.systems.{kind}.example must have at least 1 item")
+
+    return issues
+
+
+def cmd_validate_table(args: argparse.Namespace) -> int:
+    project_root = Path(args.project_root).resolve()
+    table_path, table = load_execution_table(project_root, args.table)
+    issues = validate_table_quality(table, allow_draft=args.allow_draft)
+
+    payload = {
+        "table_path": str(table_path) if table_path else "",
+        "ok": not issues,
+        "issues": issues,
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0 if not issues else 1
+
+    print(f"table: {table_path}")
+    if issues:
+        for issue in issues:
+            print(f"error: {issue}", file=sys.stderr)
+        print(
+            f"next: use detect prompt at {(resolve_long_run_dir(project_root) / 'detect_prompt.md')}",
+            file=sys.stderr,
+        )
+        return 1
+
+    print("ok: execution table quality check passed")
+    return 0
+
+
 def cmd_detect(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root).resolve()
     table_path, table = load_execution_table(project_root, args.table)
@@ -587,10 +849,10 @@ def cmd_detect(args: argparse.Namespace) -> int:
         )
 
     if args.json:
-        print(json.dumps({"table_path": str(table_path) if table_path else "<builtin-default>", "adapters": out}, indent=2, ensure_ascii=False))
+        print(json.dumps({"table_path": str(table_path), "adapters": out}, indent=2, ensure_ascii=False))
         return 0
 
-    print(f"table: {table_path if table_path else '<builtin-default>'}")
+    print(f"table: {table_path}")
     for item in out:
         print(
             f"- {item['name']} ({item['kind']}) enabled={item['enabled']} signal={item['signal']} rows={item['row_count']} root={item['root']}"
@@ -753,17 +1015,33 @@ def row_to_feature(row: Dict[str, Any]) -> Dict[str, Any]:
     if status not in ROW_STATUS:
         status = "todo"
 
+    acceptance = to_str_list(row.get("acceptance_criteria"))
+    if not acceptance:
+        acceptance = [
+            f"Source item reaches done/blocked: {row.get('id')}",
+            "Validation checks pass for changed scope",
+        ]
+    files_to_touch = to_str_list(row.get("files_to_touch"))
+    commands = to_str_list(row.get("commands"))
+    risks = to_str_list(row.get("risks"))
+    why_now = str(row.get("why_now", "")).strip()
+
+    desc = f"Execution row from {row.get('system')} ({row.get('id')})."
+    if why_now:
+        desc = f"{desc} Why now: {why_now}"
+
     return {
         "id": fid,
         "title": str(row.get("title") or row.get("id")),
         "status": status,
         "priority": parse_int(row.get("priority"), 9999),
-        "description": f"Execution row from {row.get('system')} ({row.get('id')}).",
+        "description": desc,
         "dependencies": [],
-        "acceptance_criteria": [
-            f"Source item reaches done/blocked: {row.get('id')}",
-            "Validation checks pass for changed scope",
-        ],
+        "acceptance_criteria": acceptance,
+        "files_to_touch": files_to_touch,
+        "commands": commands,
+        "risks": risks,
+        "why_now": why_now,
         "updates": [f"{utc_now()} synced from bk-execution-table"],
         "managed_by": "execution-table",
         "source_system": str(row.get("system", "")),
@@ -774,7 +1052,11 @@ def row_to_feature(row: Dict[str, Any]) -> Dict[str, Any]:
 
 def cmd_sync_feature_list(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root).resolve()
-    feature_file = Path(args.feature_file) if args.feature_file else project_root / ".bagakit-long-run" / "feature-list.json"
+    feature_file = (
+        Path(args.feature_file)
+        if args.feature_file
+        else resolve_long_run_dir(project_root) / "feature-list.json"
+    )
     _, table = load_execution_table(project_root, args.table)
     rows = collect_rows(project_root, table)
 
@@ -815,6 +1097,13 @@ def cmd_sync_feature_list(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="bagakit-long-run execution-table adapters")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p_validate_table = sub.add_parser("validate-table", help="validate execution-table quality contract")
+    p_validate_table.add_argument("project_root")
+    p_validate_table.add_argument("--table", default="")
+    p_validate_table.add_argument("--allow-draft", action="store_true")
+    p_validate_table.add_argument("--json", action="store_true")
+    p_validate_table.set_defaults(func=cmd_validate_table)
 
     p_detect = sub.add_parser("detect", help="detect configured adapter roots")
     p_detect.add_argument("project_root")
