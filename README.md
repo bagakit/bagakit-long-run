@@ -137,5 +137,5 @@ python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" sync
 ## Local verification
 
 ```bash
-./scripts/test.sh
+./scripts_dev/test.sh
 ```

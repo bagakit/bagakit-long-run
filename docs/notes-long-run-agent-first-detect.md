@@ -14,6 +14,10 @@ It should not hardcode every upstream system in control flow. Instead:
 - Agent curates execution-table mapping.
 - Script validates quality and executes deterministic loop operations.
 
+Compatibility policy:
+- no hard dependency on external systems (for example OpenSpec).
+- external systems are optional adapters in execution-table; unavailable adapters must not break the loop.
+
 ## Why
 
 Unknown upstream systems are common (OpenSpec, ft-harness, issue trackers, custom docs).

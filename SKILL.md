@@ -116,4 +116,4 @@ For manual rows, required fields include:
 - `bagakit_long_run_doctor.sh`: diagnose loop health and next actions
 - `bagakit_long_run_execution.py`: validate-table/detect/plan/guide/sync-feature-list
 - `bagakit_long_run_features.py`: feature list validate/summary/pick/set-status
-- `test.sh`: self-test
+- `scripts_dev/test.sh`: self-test

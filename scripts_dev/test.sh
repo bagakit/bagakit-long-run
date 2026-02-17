@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-skill_root="$(cd "${script_dir}/.." && pwd)"
+dev_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+skill_root="$(cd "${dev_script_dir}/.." && pwd)"
+runtime_scripts_dir="${skill_root}/scripts"
 
 tmp="$(mktemp -d -t bagakit-long-run-test.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
@@ -12,8 +13,31 @@ mkdir -p "$project"
 harness_dir="${project}/.bagakit/long-run"
 ft_harness_dir="${project}/.bagakit/ft-harness"
 
+echo "[test] docs + template policy audit"
+python3 - <<PY
+import json
+from pathlib import Path
+
+root = Path(r"${skill_root}")
+doc = (root / "docs" / "notes-long-run-agent-first-detect.md").read_text(encoding="utf-8")
+required_phrases = [
+    "no hard dependency on external systems",
+    "optional adapters",
+]
+for phrase in required_phrases:
+    if phrase not in doc:
+        raise SystemExit(f"missing policy phrase in docs/notes-long-run-agent-first-detect.md: {phrase}")
+
+table = json.loads((root / "references" / "bk-execution-table-template.json").read_text(encoding="utf-8"))
+adapters = table.get("adapters", [])
+kinds = {str(a.get("kind", "")) for a in adapters if isinstance(a, dict)}
+for kind in ("bagakit-ft", "openspec", "manual"):
+    if kind not in kinds:
+        raise SystemExit(f"missing built-in adapter kind in template: {kind}")
+PY
+
 echo "[test] apply harness"
-bash "${script_dir}/apply-long-run.sh" "$project"
+bash "${runtime_scripts_dir}/apply-long-run.sh" "$project"
 
 [[ -f "${harness_dir}/bk-execution-handoff.md" ]]
 [[ -f "${harness_dir}/bk-execution-table.json" ]]
@@ -33,7 +57,7 @@ grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/bk-execution-handoff.md"
 grep -q "^- LongRun:" "${harness_dir}/bk-execution-handoff.md"
 
 echo "[test] detect quality gate should fail when draft"
-if python3 "${script_dir}/bagakit_long_run_execution.py" validate-table "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then
+if python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" validate-table "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then
   echo "[test] expected validate-table to fail when detection.status=draft" >&2
   exit 1
 fi
@@ -49,12 +73,12 @@ det = data.setdefault("detection", {})
 det["status"] = "ready"
 det["last_reviewed_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 det["reviewed_by"] = "test"
-det["upstream_systems"] = ["bagakit-ft", "openspec"]
+det["upstream_systems"] = ["bagakit-ft"]
 p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
 
 echo "[test] validate harness"
-bash "${script_dir}/validate-long-run.sh" "$project"
+bash "${runtime_scripts_dir}/validate-long-run.sh" "$project"
 
 echo "[test] execution adapters: seed bagakit-ft + openspec"
 mkdir -p "${ft_harness_dir}/index" "${ft_harness_dir}/feats/f-20260215-sync-sample" "${project}/openspec/changes/add-health-check"
@@ -99,18 +123,18 @@ cat > "${project}/openspec/changes/add-health-check/tasks.md" <<'EOF'
 EOF
 
 echo "[test] execution plan + sync"
-python3 "${script_dir}/bagakit_long_run_execution.py" detect "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
-python3 "${script_dir}/bagakit_long_run_execution.py" plan "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
-python3 "${script_dir}/bagakit_long_run_execution.py" guide "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
-python3 "${script_dir}/bagakit_long_run_execution.py" sync-feature-list "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" >/dev/null
+python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" detect "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" plan "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" guide "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" sync-feature-list "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" >/dev/null
 
 echo "[test] doctor"
-bash "${script_dir}/bagakit_long_run_doctor.sh" "$project"
+bash "${runtime_scripts_dir}/bagakit_long_run_doctor.sh" "$project"
 
 echo "[test] idempotent apply"
-bash "${script_dir}/apply-long-run.sh" "$project"
+bash "${runtime_scripts_dir}/apply-long-run.sh" "$project"
 
 echo "[test] python tool summary"
-python3 "${script_dir}/bagakit_long_run_features.py" summary "${harness_dir}/feature-list.json" >/dev/null
+python3 "${runtime_scripts_dir}/bagakit_long_run_features.py" summary "${harness_dir}/feature-list.json" >/dev/null
 
 echo "[test] pass (${skill_root})"
