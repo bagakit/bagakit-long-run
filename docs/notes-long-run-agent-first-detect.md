@@ -36,7 +36,16 @@ Script validation provides:
 1. Agent updates `.bagakit/long-run/bk-execution-table.json`.
 2. `detection.status` becomes `ready`.
 3. `validate-table` passes.
-4. only then does long-run init/plan/sync proceed.
+4. only then does long-run check/resume, plan, and sync proceed.
+
+Loop operation is resume-driven:
+- use `bash .bagakit/long-run/check_and_resume.sh` as the resume command (next-action SSOT)
+- run it at session start and after each detect/initializer/coding pass
+- follow resume output instead of manually guessing next actions
+
+When stopping a session without continuing:
+- final `[[BAGAKIT]]` footer should include `- LongRunStop: ...`
+- if not fully completed, include a short retro on why full completion was not possible and what unblocks the next run
 
 ## Quality Baseline
 

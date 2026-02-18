@@ -23,8 +23,8 @@ STATUS_RANK = {
     "blocked": 2,
     "done": 3,
 }
-LONG_RUN_DIR_NEW = Path(".bagakit") / "long-run"
-FT_HARNESS_DIR_NEW = Path(".bagakit") / "ft-harness"
+LONG_RUN_DIR = Path(".bagakit") / "long-run"
+FT_HARNESS_DIR = Path(".bagakit") / "ft-harness"
 KNOWN_ADAPTER_KINDS = {"bagakit-ft", "openspec", "manual"}
 DETECTION_STATUS = {"draft", "ready"}
 QUALITY_REQUIRED_PLAN_ITEMS = [
@@ -73,7 +73,7 @@ DEFAULT_TABLE: Dict[str, Any] = {
             },
         },
         {
-            "name": "manual-custom-default",
+            "name": "manual-default",
             "kind": "manual",
             "enabled": False,
             "root": ".",
@@ -150,7 +150,7 @@ DEFAULT_TABLE: Dict[str, Any] = {
 
 
 def resolve_long_run_dir(project_root: Path) -> Path:
-    return project_root / LONG_RUN_DIR_NEW
+    return project_root / LONG_RUN_DIR
 
 
 def utc_now() -> str:
@@ -312,8 +312,12 @@ def eval_detect_rules(adapter_root_path: Path, detect: Any) -> Dict[str, Any]:
         raw_rules = detect.get("any")
 
     if raw_rules is None:
-        # Backward-compatible shorthand: a single atomic rule object.
-        raw_rules = [detect]
+        return {
+            "matched": False,
+            "mode": mode,
+            "passed_rules": 0,
+            "total_rules": 0,
+        }
 
     if not isinstance(raw_rules, list):
         return {
@@ -397,7 +401,7 @@ def pick_feat_task(tasks: List[Dict[str, Any]]) -> Dict[str, Any] | None:
 
 def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict[str, Any]]:
     root = adapter_root(project_root, adapter)
-    harness_dir = root / FT_HARNESS_DIR_NEW
+    harness_dir = root / FT_HARNESS_DIR
     index_file = harness_dir / "index" / "feats.json"
     if not index_file.exists():
         return []
@@ -656,7 +660,7 @@ def truncate_rows(rows: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]
     return rows[:limit]
 
 
-def validate_table_quality(table: Dict[str, Any], *, allow_draft: bool = False) -> List[str]:
+def validate_table_quality(table: Dict[str, Any]) -> List[str]:
     issues: List[str] = []
 
     detection = table.get("detection")
@@ -666,7 +670,7 @@ def validate_table_quality(table: Dict[str, Any], *, allow_draft: bool = False) 
         status = str(detection.get("status", "")).strip()
         if status not in DETECTION_STATUS:
             issues.append(f"detection.status must be one of {sorted(DETECTION_STATUS)}")
-        if not allow_draft and status != "ready":
+        if status != "ready":
             issues.append("detection.status must be 'ready' (run detect prompt and update table first)")
         if status == "ready":
             if not str(detection.get("last_reviewed_at", "")).strip():
@@ -789,7 +793,7 @@ def validate_table_quality(table: Dict[str, Any], *, allow_draft: bool = False) 
 def cmd_validate_table(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root).resolve()
     table_path, table = load_execution_table(project_root, args.table)
-    issues = validate_table_quality(table, allow_draft=args.allow_draft)
+    issues = validate_table_quality(table)
 
     payload = {
         "table_path": str(table_path) if table_path else "",
@@ -890,23 +894,6 @@ def cmd_plan(args: argparse.Namespace) -> int:
         print(
             f"{row['status']:<12} {row['system']:<10} {row['id']:<40} {row['title']}"
         )
-    return 0
-
-
-def cmd_next(args: argparse.Namespace) -> int:
-    project_root = Path(args.project_root).resolve()
-    _, table = load_execution_table(project_root, args.table)
-    rows = collect_rows(project_root, table)
-    next_rows = [r for r in rows if r.get("actionable")]
-    if not next_rows:
-        return 1
-    row = next_rows[0]
-
-    if args.json:
-        print(json.dumps(row, indent=2, ensure_ascii=False))
-        return 0
-
-    print(f"{row['id']} {row['title']}")
     return 0
 
 
@@ -1074,7 +1061,7 @@ def cmd_sync_feature_list(args: argparse.Namespace) -> int:
     manual_has_in_progress = any(str(f.get("status")) == "in_progress" for f in manual)
     in_progress_taken = manual_has_in_progress
 
-    # Keep a single in_progress item for validator compatibility.
+    # Keep exactly one in_progress item to preserve deterministic selection.
     for feature in generated:
         if feature.get("status") == "in_progress":
             if in_progress_taken:
@@ -1101,7 +1088,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_validate_table = sub.add_parser("validate-table", help="validate execution-table quality contract")
     p_validate_table.add_argument("project_root")
     p_validate_table.add_argument("--table", default="")
-    p_validate_table.add_argument("--allow-draft", action="store_true")
     p_validate_table.add_argument("--json", action="store_true")
     p_validate_table.set_defaults(func=cmd_validate_table)
 
@@ -1117,12 +1103,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_plan.add_argument("--limit", type=int, default=0, help="0 means no limit")
     p_plan.add_argument("--json", action="store_true")
     p_plan.set_defaults(func=cmd_plan)
-
-    p_next = sub.add_parser("next", help="print next actionable execution row")
-    p_next.add_argument("project_root")
-    p_next.add_argument("--table", default="")
-    p_next.add_argument("--json", action="store_true")
-    p_next.set_defaults(func=cmd_next)
 
     p_guide = sub.add_parser("guide", help="print guidance checklist for target system/item")
     p_guide.add_argument("project_root")

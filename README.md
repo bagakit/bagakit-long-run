@@ -5,7 +5,7 @@ A Bagakit skill focused on driving long-running delivery loops.
 `long-run` is an execution driver:
 - it does not own worktree state
 - it does not replace upstream change systems
-- it enforces a repeatable loop: detect -> init -> execute one item -> verify -> continue
+- it enforces a repeatable loop: detect -> check+resume -> execute one item -> verify -> continue
 
 Reference:
 - https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents
@@ -23,6 +23,7 @@ Reference:
 - Planning must include: why now, exact files, commands/checks, verification expectation, risk/rollback.
 - Coding pass cannot mark `done` without check evidence.
 - Detect/initializer/coding responses must end with `[[BAGAKIT]]` and include a peer line: `- LongRun: Item=...; Status=...; Evidence=...; Next=...`.
+- If ending a session without continuing the loop right now, also include `- LongRunStop: ...` to explain why you stop (and a brief retro if not fully done).
 
 ## What this repo contains
 
@@ -43,18 +44,18 @@ Restart your agent runtime after install.
 ### 1. Apply harness files
 
 ```bash
-export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.claude}/skills/bagakit-long-run}"
+export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-long-run}"
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/apply-long-run.sh" .
 ```
 
 Creates:
 - `.bagakit/long-run/detect_prompt.md`
-- `.bagakit/long-run/initial_prompt.md`
 - `.bagakit/long-run/coding_prompt.md`
+- `.bagakit/long-run/initializer_prompt.md`
 - `.bagakit/long-run/feature-list.json`
 - `.bagakit/long-run/bk-execution-handoff.md`
 - `.bagakit/long-run/bk-execution-table.json`
-- `.bagakit/long-run/init.sh`
+- `.bagakit/long-run/check_and_resume.sh`
 - `AGENTS.md` (`BAGAKIT:LONGRUN` managed block)
 
 ### 2. Run detect pass (Agent)
@@ -72,10 +73,10 @@ For unknown/custom upstream systems, use `kind=manual` rows.
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" validate-table .
 ```
 
-### 4. Start session init
+### 4. Check and resume
 
 ```bash
-sh .bagakit/long-run/init.sh
+bash .bagakit/long-run/check_and_resume.sh
 ```
 
 This runs:
@@ -84,10 +85,12 @@ This runs:
 - detect/plan/guide outputs
 - feature-list sync
 
+Treat `bash .bagakit/long-run/check_and_resume.sh` as the resume command for every round.
+
 ### 5. Initializer pass
 
 Run one initializer pass with:
-- `.bagakit/long-run/initial_prompt.md`
+- `.bagakit/long-run/initializer_prompt.md`
 
 Output must be a high-quality single-item handoff in:
 - `.bagakit/long-run/bk-execution-handoff.md`
@@ -111,7 +114,7 @@ bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_doctor.sh" .
 ```
 
-Then re-run `sh .bagakit/long-run/init.sh` and continue the next single-item round.
+Then re-run `bash .bagakit/long-run/check_and_resume.sh` and continue the next single-item round.
 
 ## Upstream Integration Modes
 
@@ -122,7 +125,7 @@ Built-in adapter kinds:
 Custom/any system:
 - `manual` adapter with curated `rows[]` in execution table.
 
-If no rows exist yet, `init.sh` will now print explicit next actions instead of hard-failing the whole flow.
+If no rows exist yet, `check_and_resume.sh` will now print explicit next actions instead of hard-failing the whole flow.
 
 ## Useful Commands
 

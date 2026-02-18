@@ -33,13 +33,14 @@ It is not responsible for:
 - no pass if execution-table is still draft.
 - no `done` without explicit checks and verification context.
 - every detect/initializer/coding response ends with `[[BAGAKIT]]` and a peer line `- LongRun: Item=...; Status=...; Evidence=...; Next=...`.
+- if you stop a session without continuing the loop right now, add a peer line `- LongRunStop: Reason=...; Retro=...` explaining why you stop (and why the plan cannot be fully completed if not done).
 
 ## Workflow
 
 1) Apply harness files
 
 ```bash
-export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.claude}/skills/bagakit-long-run}"
+export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-long-run}"
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/apply-long-run.sh" .
 ```
 
@@ -56,14 +57,16 @@ Apply also injects/updates a managed AGENTS block (`<!-- BAGAKIT:LONGRUN:START -
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" validate-table .
 ```
 
-4) Run session init
+4) Check and resume (every round)
 
 ```bash
-sh .bagakit/long-run/init.sh
+bash .bagakit/long-run/check_and_resume.sh
 ```
 
+Treat `bash .bagakit/long-run/check_and_resume.sh` as the resume command for every round.
+
 5) Initializer pass
-- Use `.bagakit/long-run/initial_prompt.md`
+- Use `.bagakit/long-run/initializer_prompt.md`
 - Produce high-quality `bk-execution-handoff.md`
 - End the response with `[[BAGAKIT]]` and include `- LongRun: ...`
 
@@ -80,7 +83,7 @@ bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_doctor.sh" .
 ```
 
-Then re-run `sh .bagakit/long-run/init.sh` to actively pick the next actionable item.
+Then re-run `bash .bagakit/long-run/check_and_resume.sh` to actively pick the next actionable item.
 
 ## Execution-table Contract
 

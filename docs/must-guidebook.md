@@ -49,6 +49,7 @@ Promotion rule:
 - Add domain-specific docs by category (norms, guidelines, notes).
 - Use taxonomy suffixes and keep ordering consistent.
 - Start with `docs/norms-maintaining-reusable-items.md` if present.
+- For long-run loop behavior, read `docs/guidelines-long-run-resume.md`.
 
 ## Docs Maintenance
 - This guidebook must reference `must-docs-taxonomy.md`.

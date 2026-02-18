@@ -6,19 +6,21 @@ Role:
 - Upstream systems keep source-of-truth state; `long-run` normalizes one actionable item at a time.
 
 Tooling:
-- Resolve the installed skill dir as: `export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.claude}/skills/bagakit-long-run}"`
+- Resolve the installed skill dir as: `export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-long-run}"`
 
 Loop Protocol (every round):
-1. Run `sh .bagakit/long-run/init.sh`.
-2. If detect is not ready, run `.bagakit/long-run/detect_prompt.md`, update `.bagakit/long-run/bk-execution-table.json`, then re-run init.
-3. Run initializer pass with `.bagakit/long-run/initial_prompt.md` and produce a single-item handoff.
+1. Run resume command `bash .bagakit/long-run/check_and_resume.sh`.
+2. If detect is not ready, run `.bagakit/long-run/detect_prompt.md`, update `.bagakit/long-run/bk-execution-table.json`, then re-run resume.
+3. Run initializer pass with `.bagakit/long-run/initializer_prompt.md` and produce a single-item handoff.
 4. Run coding pass with `.bagakit/long-run/coding_prompt.md`, execute exactly one item, and update status/check evidence.
-5. Re-run `sh .bagakit/long-run/init.sh` to actively pick the next actionable item and continue.
+5. After each pass, re-run `bash .bagakit/long-run/check_and_resume.sh` to actively pick the next actionable item and continue.
 
 Response Driver (every long-run pass):
 - End detect/initializer/coding responses with the project footer block `[[BAGAKIT]]`.
 - Add long-run progress as a peer footer line (same level as `- LivingDoc: ...`):
   - `- LongRun: Item=<id|detect>; Status=<ready|todo|in_progress|done|blocked>; Evidence=<validation/tests>; Next=<exact command>`
+- If ending current session without continuing the loop, add a peer stop line:
+  - `- LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why not fully complete + unblock/next step>`
 
 Detect Rules:
 - Detect is agent-driven and rule-based; do not hardcode project-specific names in scripts.

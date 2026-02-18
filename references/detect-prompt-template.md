@@ -20,7 +20,9 @@ Update `bk-execution-table.json` so that:
 4. at least one adapter is enabled and actually matches project artifacts
 5. guidance is specific enough to produce high-quality single-item coding handoffs
 6. final response ends with `[[BAGAKIT]]` and includes a peer footer line:
-   - `- LongRun: Item=detect; Status=ready|blocked; Evidence=validate-table result; Next=sh .bagakit/long-run/init.sh` (or detect rerun command when blocked)
+   - `- LongRun: Item=detect; Status=ready|blocked; Evidence=validate-table result; Next=bash .bagakit/long-run/check_and_resume.sh` (or detect rerun command when blocked)
+   - If you stop this session without continuing the loop, also add:
+     - `- LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why not fully complete + unblock/next step>`
 
 ## Adapter Rules
 

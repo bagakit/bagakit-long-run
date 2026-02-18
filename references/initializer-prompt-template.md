@@ -14,15 +14,17 @@ Your job is planning quality, not code implementation.
 ## Required Steps
 
 1. Run pre-session checks:
-   - `sh .bagakit/long-run/init.sh`
+   - `bash .bagakit/long-run/check_and_resume.sh`
 2. Select exactly one actionable execution item:
    - if an item is already `in_progress`, continue it
    - otherwise pick the highest-priority actionable `todo` row
 3. Ensure `feature-list.json` has only one active `in_progress` item.
 4. Rewrite `bk-execution-handoff.md` for the coding pass.
-5. End with explicit "Next Command": `sh .bagakit/long-run/init.sh` after coding pass completes.
+5. End with explicit "Next Command": `bash .bagakit/long-run/check_and_resume.sh` after coding pass completes.
 6. End your response with `[[BAGAKIT]]` and include:
-   - `- LongRun: Item=<execution-item-id>; Status=in_progress|blocked; Evidence=handoff updated + why-now/acceptance/commands present; Next=sh .bagakit/long-run/init.sh`
+   - `- LongRun: Item=<execution-item-id>; Status=in_progress|blocked; Evidence=handoff updated + why-now/acceptance/commands present; Next=bash .bagakit/long-run/check_and_resume.sh`
+   - If you stop this session without continuing, also add:
+     - `- LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why not fully complete + unblock/next step>`
 
 ## Handoff Quality Contract (must satisfy)
 

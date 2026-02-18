@@ -25,9 +25,11 @@ You are the coding agent for this repository.
    - residual risks
    - next-run suggestion
 7. End with explicit follow-up command:
-   - `sh .bagakit/long-run/init.sh`
+   - `bash .bagakit/long-run/check_and_resume.sh`
 8. End your response with `[[BAGAKIT]]` and include:
-   - `- LongRun: Item=<execution-item-id>; Status=done|blocked; Evidence=acceptance checks + gate/test outcomes; Next=sh .bagakit/long-run/init.sh`
+   - `- LongRun: Item=<execution-item-id>; Status=done|blocked; Evidence=acceptance checks + gate/test outcomes; Next=bash .bagakit/long-run/check_and_resume.sh`
+   - If you are stopping the loop for this session (not continuing right now), also add:
+     - `- LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why not fully complete + unblock/next step>`
 
 ## Constraints
 

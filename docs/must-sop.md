@@ -4,12 +4,19 @@ This SOP is generated from docs frontmatter. Do not edit manually.
 
 ## Update Requirements
 - When a document with SOP frontmatter changes, regenerate this file and commit the result:
-  - `export BAGAKIT_LIVING_DOCS_SKILL_DIR="${BAGAKIT_LIVING_DOCS_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-living-docs}"`
+  - `export BAGAKIT_LIVING_DOCS_SKILL_DIR="${BAGAKIT_LIVING_DOCS_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.claude}/skills/bagakit-living-docs}"`
   - `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_generate_sop.sh" .`
 - Add new SOP items by updating the `sop` list in the source document frontmatter.
 - Keep SOP items small and actionable; use the source document for details.
 
 ## SOP Items
+
+### Long Run Resume & Stop Contract (恢复循环与停止说明)
+Source: `docs/guidelines-long-run-resume.md`
+- Treat `bash .bagakit/long-run/check_and_resume.sh` as the **resume command** (next-action SSOT); run it at the start of a session and after every detect/initializer/coding pass.
+- After finishing the current item (done/blocked), run resume and continue by following its output (do not guess the next action).
+- If you stop the loop at the end of a session, explain **why you are not continuing** in the `[[BAGAKIT]]` footer. If not fully done, include a short retrospective and the unblock/next step.
+- When this contract changes, update `references/*template*` + `scripts/validate-long-run.sh`, then regenerate `docs/must-sop.md`.
 
 ### Maintaining Reusable Items (可复用项维护)
 Source: `docs/norms-maintaining-reusable-items.md`

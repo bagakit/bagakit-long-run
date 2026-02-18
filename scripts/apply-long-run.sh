@@ -73,6 +73,14 @@ copy_managed_template() {
   fi
 }
 
+remove_legacy_file() {
+  local path="$1"
+  if [[ -e "$path" ]]; then
+    rm -rf "$path"
+    echo "remove: ${path} (legacy)"
+  fi
+}
+
 if [[ ! -d "$refs_dir" ]]; then
   echo "missing references dir: ${refs_dir}" >&2
   exit 1
@@ -84,16 +92,20 @@ fi
 
 mkdir -p "$harness_dir"
 
-copy_template "${refs_dir}/initial-prompt-template.md" "${harness_dir}/initial_prompt.md"
-copy_template "${refs_dir}/coding-prompt-template.md" "${harness_dir}/coding_prompt.md"
+copy_managed_template "${refs_dir}/detect-prompt-template.md" "${harness_dir}/detect_prompt.md"
+copy_managed_template "${refs_dir}/initializer-prompt-template.md" "${harness_dir}/initializer_prompt.md"
+copy_managed_template "${refs_dir}/coding-prompt-template.md" "${harness_dir}/coding_prompt.md"
 copy_template "${refs_dir}/feature-list-template.json" "${harness_dir}/feature-list.json"
 copy_template "${refs_dir}/bk-execution-handoff-template.md" "${harness_dir}/bk-execution-handoff.md"
 copy_template "${refs_dir}/bk-execution-table-template.json" "${harness_dir}/bk-execution-table.json"
-copy_template "${refs_dir}/detect-prompt-template.md" "${harness_dir}/detect_prompt.md"
-copy_managed_template "${refs_dir}/init-sh-template.sh" "${harness_dir}/init.sh"
+copy_managed_template "${refs_dir}/check-and-resume-sh-template.sh" "${harness_dir}/check_and_resume.sh"
 
-if [[ -f "${harness_dir}/init.sh" ]]; then
-  chmod +x "${harness_dir}/init.sh" 2>/dev/null || true
+# Final-state cleanup: remove old long-run artifacts.
+remove_legacy_file "${harness_dir}/init.sh"
+remove_legacy_file "${harness_dir}/initial_prompt.md"
+
+if [[ -f "${harness_dir}/check_and_resume.sh" ]]; then
+  chmod +x "${harness_dir}/check_and_resume.sh" 2>/dev/null || true
 fi
 
 gitignore_file="${harness_dir}/.gitignore"
@@ -151,5 +163,5 @@ echo "bagakit-long-run harness ready at: ${harness_dir}"
 echo "agents block: BAGAKIT:LONGRUN in ${agents_file}"
 echo "next:"
 echo "  0) run detect pass with ${rel_harness}/detect_prompt.md and mark table detection.status=ready"
-echo "  1) sh ${rel_harness}/init.sh"
+echo "  1) bash ${rel_harness}/check_and_resume.sh"
 echo "  2) run initializer -> coding loop"

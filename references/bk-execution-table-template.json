@@ -52,7 +52,7 @@
       }
     },
     {
-      "name": "manual-custom-default",
+      "name": "manual-default",
       "kind": "manual",
       "enabled": false,
       "root": ".",

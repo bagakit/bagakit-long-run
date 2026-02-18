@@ -28,6 +28,11 @@ for phrase in required_phrases:
     if phrase not in doc:
         raise SystemExit(f"missing policy phrase in docs/notes-long-run-agent-first-detect.md: {phrase}")
 
+resume_doc = (root / "docs" / "guidelines-long-run-resume.md").read_text(encoding="utf-8")
+for phrase in ("bash .bagakit/long-run/check_and_resume.sh", "LongRunStop:"):
+    if phrase not in resume_doc:
+        raise SystemExit(f"missing resume/stop contract phrase in docs/guidelines-long-run-resume.md: {phrase}")
+
 table = json.loads((root / "references" / "bk-execution-table-template.json").read_text(encoding="utf-8"))
 adapters = table.get("adapters", [])
 kinds = {str(a.get("kind", "")) for a in adapters if isinstance(a, dict)}
@@ -42,19 +47,27 @@ bash "${runtime_scripts_dir}/apply-long-run.sh" "$project"
 [[ -f "${harness_dir}/bk-execution-handoff.md" ]]
 [[ -f "${harness_dir}/bk-execution-table.json" ]]
 [[ -f "${harness_dir}/detect_prompt.md" ]]
+[[ -f "${harness_dir}/check_and_resume.sh" ]]
+[[ ! -e "${harness_dir}/init.sh" ]]
+[[ ! -e "${harness_dir}/initial_prompt.md" ]]
 [[ -f "${project}/AGENTS.md" ]]
 grep -q "<!-- BAGAKIT:LONGRUN:START -->" "${project}/AGENTS.md"
 grep -q "<!-- BAGAKIT:LONGRUN:END -->" "${project}/AGENTS.md"
 grep -q "\[\[BAGAKIT\]\]" "${project}/AGENTS.md"
 grep -q "LongRun:" "${project}/AGENTS.md"
+grep -q "LongRunStop:" "${project}/AGENTS.md"
 grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/detect_prompt.md"
 grep -q "LongRun:" "${harness_dir}/detect_prompt.md"
-grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/initial_prompt.md"
-grep -q "LongRun:" "${harness_dir}/initial_prompt.md"
+grep -q "LongRunStop:" "${harness_dir}/detect_prompt.md"
+grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/initializer_prompt.md"
+grep -q "LongRun:" "${harness_dir}/initializer_prompt.md"
+grep -q "LongRunStop:" "${harness_dir}/initializer_prompt.md"
 grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/coding_prompt.md"
 grep -q "LongRun:" "${harness_dir}/coding_prompt.md"
+grep -q "LongRunStop:" "${harness_dir}/coding_prompt.md"
 grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/bk-execution-handoff.md"
 grep -q "^- LongRun:" "${harness_dir}/bk-execution-handoff.md"
+grep -q "LongRunStop:" "${harness_dir}/bk-execution-handoff.md"
 
 echo "[test] detect quality gate should fail when draft"
 if python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" validate-table "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then
