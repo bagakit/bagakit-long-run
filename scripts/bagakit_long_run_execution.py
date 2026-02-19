@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 ROW_STATUS = {"todo", "in_progress", "done", "blocked"}
+FEATURE_STATUS = {"todo", "in_progress", "done", "blocked"}
 STATUS_RANK = {
     "in_progress": 0,
     "todo": 1,
@@ -775,6 +776,45 @@ def truncate_rows(rows: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]
     return rows[:limit]
 
 
+def pick_next_row(rows: List[Dict[str, Any]]) -> Dict[str, Any] | None:
+    actionable = [row for row in rows if bool(row.get("actionable"))]
+    if actionable:
+        return actionable[0]
+    return rows[0] if rows else None
+
+
+def feature_sort_key(feature: Dict[str, Any]) -> tuple[float, int, int, str]:
+    priority = parse_int(feature.get("priority"), 10**9)
+    confidence = parse_confidence(feature.get("confidence"), 0.5)
+    evidence_count = parse_int(
+        feature.get("evidence_count"), len(to_str_list(feature.get("evidence")))
+    )
+    return (-confidence, -evidence_count, priority, str(feature.get("id", "")))
+
+
+def pick_feature_from_file(feature_file: Path) -> Dict[str, Any] | None:
+    if not feature_file.exists():
+        return None
+    data = load_json(feature_file)
+    features = data.get("features")
+    if not isinstance(features, list):
+        return None
+    normalized = [f for f in features if isinstance(f, dict) and str(f.get("status")) in FEATURE_STATUS]
+    in_progress = sorted(
+        [f for f in normalized if f.get("status") == "in_progress"],
+        key=feature_sort_key,
+    )
+    if in_progress:
+        return in_progress[0]
+    todo = sorted(
+        [f for f in normalized if f.get("status") == "todo"],
+        key=feature_sort_key,
+    )
+    if todo:
+        return todo[0]
+    return None
+
+
 def validate_table_quality(table: Dict[str, Any]) -> List[str]:
     issues: List[str] = []
 
@@ -1037,6 +1077,112 @@ def cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_next_action(args: argparse.Namespace) -> int:
+    project_root = Path(args.project_root).resolve()
+    _, table = load_execution_table(project_root, args.table)
+    rows = collect_rows(project_root, table)
+    next_row = pick_next_row(rows)
+
+    feature_file = (
+        Path(args.feature_file)
+        if args.feature_file
+        else resolve_long_run_dir(project_root) / "feature-list.json"
+    )
+    next_feature = pick_feature_from_file(feature_file)
+
+    resume_command = "bash .bagakit/long-run/check_and_resume.sh"
+    payload: Dict[str, Any] = {
+        "selection_strategy": SELECTION_STRATEGY,
+        "resume_command": resume_command,
+        "next_row": None,
+        "next_feature": None,
+        "footer_line": "",
+    }
+
+    if next_row:
+        confidence = parse_confidence(
+            next_row.get("confidence"),
+            status_default_confidence(str(next_row.get("status", ""))),
+        )
+        evidence = to_str_list(next_row.get("evidence"))
+        evidence_count = parse_int(next_row.get("evidence_count"), len(evidence))
+        payload["next_row"] = {
+            "id": next_row.get("id", ""),
+            "title": next_row.get("title", ""),
+            "status": next_row.get("status", ""),
+            "system": next_row.get("system", ""),
+            "source_ref": next_row.get("source_ref", ""),
+            "confidence": confidence,
+            "evidence": evidence,
+            "evidence_count": evidence_count,
+        }
+        evidence_brief = " | ".join(evidence[:3]) if evidence else "none"
+        payload["footer_line"] = (
+            f"- LongRun: Item={next_row.get('id','')}; "
+            f"Status={next_row.get('status','')}; "
+            f"Confidence={confidence:.2f}; "
+            f"Evidence={evidence_brief}; "
+            f"Next={resume_command}"
+        )
+    else:
+        payload["footer_line"] = (
+            f"- LongRun: Item=none; Status=blocked; Confidence=0.00; "
+            f"Evidence=no actionable row; Next={resume_command}"
+        )
+
+    if next_feature:
+        payload["next_feature"] = {
+            "id": next_feature.get("id", ""),
+            "title": next_feature.get("title", ""),
+            "status": next_feature.get("status", ""),
+            "confidence": parse_confidence(next_feature.get("confidence"), 0.5),
+            "evidence_count": parse_int(
+                next_feature.get("evidence_count"),
+                len(to_str_list(next_feature.get("evidence"))),
+            ),
+        }
+
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    if payload["next_row"]:
+        row = payload["next_row"]
+        print(
+            "next_row: {id} ({status}) {title}".format(
+                id=row.get("id", ""),
+                status=row.get("status", ""),
+                title=row.get("title", ""),
+            )
+        )
+        print(f"system: {row.get('system', '')}")
+        print(f"source: {row.get('source_ref', '')}")
+        print(
+            "confidence/evidence: conf={conf:.2f} evidence_count={ev}".format(
+                conf=float(row.get("confidence", 0.0)),
+                ev=row.get("evidence_count", 0),
+            )
+        )
+    else:
+        print("next_row: none")
+
+    if payload["next_feature"]:
+        feat = payload["next_feature"]
+        print(
+            "next_feature: {id} ({status}) {title}".format(
+                id=feat.get("id", ""),
+                status=feat.get("status", ""),
+                title=feat.get("title", ""),
+            )
+        )
+    else:
+        print("next_feature: none")
+
+    print("footer_line:")
+    print(payload["footer_line"])
+    return 0
+
+
 def merge_guidance(table: Dict[str, Any], system: str) -> Dict[str, List[str]]:
     default_guidance = DEFAULT_TABLE.get("guidance", {})
     table_guidance = table.get("guidance", {}) if isinstance(table.get("guidance", {}), dict) else {}
@@ -1267,6 +1413,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_plan.add_argument("--limit", type=int, default=0, help="0 means no limit")
     p_plan.add_argument("--json", action="store_true")
     p_plan.set_defaults(func=cmd_plan)
+
+    p_next = sub.add_parser("next-action", help="print structured next-action recommendation")
+    p_next.add_argument("project_root")
+    p_next.add_argument("--table", default="")
+    p_next.add_argument("--feature-file", default="")
+    p_next.add_argument("--json", action="store_true")
+    p_next.set_defaults(func=cmd_next_action)
 
     p_guide = sub.add_parser("guide", help="print guidance checklist for target system/item")
     p_guide.add_argument("project_root")

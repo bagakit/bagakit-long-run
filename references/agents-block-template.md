@@ -18,7 +18,7 @@ Loop Protocol (every round):
 Response Driver (every long-run pass):
 - End detect/initializer/coding responses with the project footer block `[[BAGAKIT]]`.
 - Add long-run progress as a peer footer line (same level as `- LivingDoc: ...`):
-  - `- LongRun: Item=<id|detect>; Status=<ready|todo|in_progress|done|blocked>; Evidence=<validation/tests>; Next=<exact command>`
+  - `- LongRun: Item=<id|detect>; Status=<ready|todo|in_progress|done|blocked>; Confidence=<0.00~1.00>; Evidence=<validation/tests>; Next=<exact command>`
 - If ending current session without continuing the loop, add a peer stop line:
   - `- LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why not fully complete + unblock/next step>`
 

@@ -22,7 +22,7 @@ Your job is planning quality, not code implementation.
 4. Rewrite `bk-execution-handoff.md` for the coding pass.
 5. End with explicit "Next Command": `bash .bagakit/long-run/check_and_resume.sh` after coding pass completes.
 6. End your response with `[[BAGAKIT]]` and include:
-   - `- LongRun: Item=<execution-item-id>; Status=in_progress|blocked; Evidence=handoff updated + why-now/acceptance/commands present; Next=bash .bagakit/long-run/check_and_resume.sh`
+   - `- LongRun: Item=<execution-item-id>; Status=in_progress|blocked; Confidence=0.00~1.00; Evidence=handoff updated + why-now/acceptance/commands present; Next=bash .bagakit/long-run/check_and_resume.sh`
    - If you stop this session without continuing, also add:
      - `- LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why not fully complete + unblock/next step>`
 

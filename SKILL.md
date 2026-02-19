@@ -33,7 +33,7 @@ It is not responsible for:
 3. Quality over convenience:
 - no pass if execution-table is still draft.
 - no `done` without explicit checks and verification context.
-- every detect/initializer/coding response ends with `[[BAGAKIT]]` and a peer line `- LongRun: Item=...; Status=...; Evidence=...; Next=...`.
+- every detect/initializer/coding response ends with `[[BAGAKIT]]` and a peer line `- LongRun: Item=...; Status=...; Confidence=...; Evidence=...; Next=...`.
 - if you stop a session without continuing the loop right now, add a peer line `- LongRunStop: Reason=...; Retro=...` explaining why you stop (and why the plan cannot be fully completed if not done).
 
 ## Workflow
@@ -65,6 +65,8 @@ bash .bagakit/long-run/check_and_resume.sh
 ```
 
 Treat `bash .bagakit/long-run/check_and_resume.sh` as the resume command for every round.
+This command also writes a structured next-action contract:
+- `.bagakit/long-run/next-action.json`
 
 5) Initializer pass
 - Use `.bagakit/long-run/initializer_prompt.md`
@@ -120,6 +122,6 @@ For manual rows, required fields include:
 - `apply-long-run.sh`: scaffold runtime files
 - `validate-long-run.sh`: validate harness + execution-table quality
 - `bagakit_long_run_doctor.sh`: diagnose loop health and next actions
-- `bagakit_long_run_execution.py`: validate-table/detect/plan/guide/sync-feature-list
+- `bagakit_long_run_execution.py`: validate-table/detect/plan/next-action/guide/sync-feature-list
 - `bagakit_long_run_features.py`: feature list validate/summary/pick/set-status
 - `scripts_dev/test.sh`: self-test

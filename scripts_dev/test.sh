@@ -63,18 +63,23 @@ grep -q "<!-- BAGAKIT:LONGRUN:START -->" "${project}/AGENTS.md"
 grep -q "<!-- BAGAKIT:LONGRUN:END -->" "${project}/AGENTS.md"
 grep -q "\[\[BAGAKIT\]\]" "${project}/AGENTS.md"
 grep -q "LongRun:" "${project}/AGENTS.md"
+grep -q "Confidence=" "${project}/AGENTS.md"
 grep -q "LongRunStop:" "${project}/AGENTS.md"
 grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/detect_prompt.md"
 grep -q "LongRun:" "${harness_dir}/detect_prompt.md"
+grep -q "Confidence=" "${harness_dir}/detect_prompt.md"
 grep -q "LongRunStop:" "${harness_dir}/detect_prompt.md"
 grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/initializer_prompt.md"
 grep -q "LongRun:" "${harness_dir}/initializer_prompt.md"
+grep -q "Confidence=" "${harness_dir}/initializer_prompt.md"
 grep -q "LongRunStop:" "${harness_dir}/initializer_prompt.md"
 grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/coding_prompt.md"
 grep -q "LongRun:" "${harness_dir}/coding_prompt.md"
+grep -q "Confidence=" "${harness_dir}/coding_prompt.md"
 grep -q "LongRunStop:" "${harness_dir}/coding_prompt.md"
 grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/bk-execution-handoff.md"
 grep -q "^- LongRun:" "${harness_dir}/bk-execution-handoff.md"
+grep -q "Confidence=" "${harness_dir}/bk-execution-handoff.md"
 grep -q "LongRunStop:" "${harness_dir}/bk-execution-handoff.md"
 
 echo "[test] detect quality gate should fail when draft"
@@ -146,8 +151,25 @@ EOF
 echo "[test] execution plan + sync"
 python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" detect "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
 python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" plan "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" next-action "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" --json >/dev/null
 python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" guide "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
 python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" sync-feature-list "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" >/dev/null
+
+echo "[test] check+resume should emit structured next-action contract"
+export BAGAKIT_LONG_RUN_SKILL_DIR="${skill_root}"
+bash "${harness_dir}/check_and_resume.sh" >/dev/null
+[[ -f "${harness_dir}/next-action.json" ]]
+python3 - <<PY
+import json
+from pathlib import Path
+p = Path(r"${harness_dir}/next-action.json")
+data = json.loads(p.read_text(encoding="utf-8"))
+for key in ("resume_command", "selection_strategy", "footer_line"):
+    if key not in data:
+        raise SystemExit(f"missing next-action key: {key}")
+if "Confidence=" not in str(data.get("footer_line", "")):
+    raise SystemExit("next-action footer_line missing Confidence signal")
+PY
 
 echo "[test] doctor"
 bash "${runtime_scripts_dir}/bagakit_long_run_doctor.sh" "$project"

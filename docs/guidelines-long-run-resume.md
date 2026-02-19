@@ -26,6 +26,7 @@ It is the single source of truth for:
 - confidence/evidence signals used for ranking
 - guidance for the next actionable item
 - feature-list sync + suggested current item
+- structured next-action contract (`.bagakit/long-run/next-action.json`)
 
 Rule: **Do not guess the next step**. Always run resume and follow its output.
 
@@ -46,7 +47,7 @@ Minimum footer format (peer lines):
 ```text
 [[BAGAKIT]]
 - LivingDoc: <...>
-- LongRun: Item=<id|detect>; Status=<ready|in_progress|done|blocked>; Evidence=<...>; Next=bash .bagakit/long-run/check_and_resume.sh
+- LongRun: Item=<id|detect>; Status=<ready|in_progress|done|blocked>; Confidence=<0.00~1.00>; Evidence=<...>; Next=bash .bagakit/long-run/check_and_resume.sh
 - LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why can't fully complete the plan + what's needed to finish/unblock>
 ```
 

@@ -11,6 +11,7 @@ feature_file="${harness_dir}/feature-list.json"
 handoff_file="${harness_dir}/bk-execution-handoff.md"
 execution_table="${harness_dir}/bk-execution-table.json"
 detect_prompt="${harness_dir}/detect_prompt.md"
+next_action_json="${harness_dir}/next-action.json"
 
 echo "== Bagakit Long Run: check + resume =="
 
@@ -70,6 +71,12 @@ if next_feature="$(python3 "$feature_tool" pick "$feature_file" 2>/dev/null)"; t
 else
   echo "(none: no actionable item found)"
 fi
+
+echo
+echo "== Next action contract (structured) =="
+python3 "$execution_tool" next-action "$project_root" --table "$execution_table" --feature-file "$feature_file" --json > "$next_action_json"
+cat "$next_action_json"
+echo "next_action_file: ${next_action_json}"
 
 echo
 rel_harness="${harness_dir#${project_root}/}"

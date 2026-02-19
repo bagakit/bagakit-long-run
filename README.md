@@ -22,7 +22,7 @@ Reference:
 3. Quality contract
 - Planning must include: why now, exact files, commands/checks, verification expectation, risk/rollback.
 - Coding pass cannot mark `done` without check evidence.
-- Detect/initializer/coding responses must end with `[[BAGAKIT]]` and include a peer line: `- LongRun: Item=...; Status=...; Evidence=...; Next=...`.
+- Detect/initializer/coding responses must end with `[[BAGAKIT]]` and include a peer line: `- LongRun: Item=...; Status=...; Confidence=...; Evidence=...; Next=...`.
 - If ending a session without continuing the loop right now, also include `- LongRunStop: ...` to explain why you stop (and a brief retro if not fully done).
 
 ## What this repo contains
@@ -84,6 +84,7 @@ This runs:
 - execution-table quality validation
 - detect/plan/guide outputs
 - feature-list sync
+- structured next-action contract output (`.bagakit/long-run/next-action.json`)
 
 Treat `bash .bagakit/long-run/check_and_resume.sh` as the resume command for every round.
 
@@ -134,6 +135,7 @@ If no rows exist yet, `check_and_resume.sh` will now print explicit next actions
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" validate-table .
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" detect .
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" plan . --limit 8
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" next-action . --json
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" guide .
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" sync-feature-list .
 ```

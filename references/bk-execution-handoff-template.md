@@ -55,7 +55,7 @@ Copy this block into the final coding response (fill concrete values):
 ```text
 [[BAGAKIT]]
 - LivingDoc: <project-required note>
-- LongRun: Item=<Execution Item ID> | <Title>; Status=<in_progress|done|blocked>; Evidence=<commands/tests/verifications and pass/fail>; Next=bash .bagakit/long-run/check_and_resume.sh
+- LongRun: Item=<Execution Item ID> | <Title>; Status=<in_progress|done|blocked>; Confidence=<0.00~1.00>; Evidence=<commands/tests/verifications and pass/fail>; Next=bash .bagakit/long-run/check_and_resume.sh
 - LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why not fully complete + unblock/next step>
 ```
 

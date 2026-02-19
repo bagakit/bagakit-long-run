@@ -83,12 +83,14 @@ if [[ -f "$handoff_file" ]]; then
   grep -q "^## Next Run" "$handoff_file" || warn "handoff missing '## Next Run' section"
   grep -q "\[\[BAGAKIT\]\]" "$handoff_file" || warn "handoff missing [[BAGAKIT]] response snapshot"
   grep -q "^- LongRun:" "$handoff_file" || warn "handoff missing '- LongRun:' response snapshot line"
+  grep -q "Confidence=" "$handoff_file" || warn "handoff LongRun snapshot should include Confidence="
 fi
 
 for f in "$detect_prompt" "$initializer_prompt" "$coding_prompt"; do
   if [[ -f "$f" ]]; then
     grep -q "\[\[BAGAKIT\]\]" "$f" || fail "prompt missing [[BAGAKIT]] footer contract: ${f}"
     grep -q "LongRun:" "$f" || fail "prompt missing '- LongRun:' footer contract: ${f}"
+    grep -q "Confidence=" "$f" || fail "prompt missing 'Confidence=' in '- LongRun:' contract: ${f}"
     grep -q "LongRunStop:" "$f" || fail "prompt missing stop-reason contract '- LongRunStop:': ${f}"
   fi
 done
@@ -101,6 +103,7 @@ else
   grep -q "check_and_resume.sh" "$agents_file" || fail "AGENTS long-run block missing explicit resume loop command"
   grep -q "\[\[BAGAKIT\]\]" "$agents_file" || fail "AGENTS long-run block missing [[BAGAKIT]] response contract"
   grep -q "LongRun:" "$agents_file" || fail "AGENTS long-run block missing '- LongRun:' response contract"
+  grep -q "Confidence=" "$agents_file" || fail "AGENTS long-run block missing Confidence contract in '- LongRun:' line"
   grep -q "LongRunStop:" "$agents_file" || fail "AGENTS long-run block missing '- LongRunStop:' stop-reason contract"
 fi
 
