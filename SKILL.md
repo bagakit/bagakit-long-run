@@ -28,6 +28,7 @@ It is not responsible for:
 2. Script-driven loop:
 - detect/plan/guide/sync are reproducible commands.
 - each coding pass handles exactly one execution item.
+- row ranking is deterministic and evidence-aware: `status -> confidence -> evidence -> weight -> priority`.
 
 3. Quality over convenience:
 - no pass if execution-table is still draft.
@@ -111,6 +112,8 @@ For manual rows, required fields include:
 - `acceptance_criteria` (>=2)
 - `files_to_touch` (>=1)
 - `commands` (>=1)
+- `confidence` (0~1)
+- `evidence` (>=1)
 
 ## Scripts
 

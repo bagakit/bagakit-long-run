@@ -30,6 +30,7 @@ Agent-first detect provides:
 Script validation provides:
 - reproducibility
 - auditable quality gates
+- evidence-aware ranking with explicit confidence signals
 
 ## Runtime Contract
 
@@ -55,5 +56,6 @@ Execution planning must include:
 - commands/checks to run
 - verification expectations
 - risk/rollback and unblock actions
+- confidence (0~1) and concrete evidence lines for why this item should run now
 
 For unsupported upstream systems, use `kind=manual` rows with explicit execution fields.

@@ -1,7 +1,7 @@
 {
   "version": "1",
   "selection": {
-    "strategy": "highest_priority_first"
+    "strategy": "status_confidence_evidence_priority"
   },
   "detection": {
     "status": "draft",

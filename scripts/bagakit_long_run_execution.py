@@ -27,6 +27,13 @@ LONG_RUN_DIR = Path(".bagakit") / "long-run"
 FT_HARNESS_DIR = Path(".bagakit") / "ft-harness"
 KNOWN_ADAPTER_KINDS = {"bagakit-ft", "openspec", "manual"}
 DETECTION_STATUS = {"draft", "ready"}
+SELECTION_STRATEGY = "status_confidence_evidence_priority"
+DEFAULT_CONFIDENCE_BY_STATUS = {
+    "in_progress": 0.85,
+    "todo": 0.70,
+    "blocked": 0.25,
+    "done": 0.10,
+}
 QUALITY_REQUIRED_PLAN_ITEMS = [
     "Why this item now",
     "Exact files to touch",
@@ -37,7 +44,7 @@ QUALITY_REQUIRED_PLAN_ITEMS = [
 
 DEFAULT_TABLE: Dict[str, Any] = {
     "version": "1",
-    "selection": {"strategy": "highest_priority_first"},
+    "selection": {"strategy": SELECTION_STRATEGY},
     "detection": {
         "status": "draft",
         "last_reviewed_at": "",
@@ -185,6 +192,32 @@ def parse_int(value: Any, default: int) -> int:
         return default
 
 
+def parse_confidence(value: Any, default: float) -> float:
+    if isinstance(value, bool):
+        return default
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, min(1.0, parsed))
+
+
+def parse_confidence_strict(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed < 0.0 or parsed > 1.0:
+        return None
+    return parsed
+
+
+def status_default_confidence(status: str) -> float:
+    return DEFAULT_CONFIDENCE_BY_STATUS.get(status, 0.50)
+
+
 def to_str_list(value: Any) -> List[str]:
     if not isinstance(value, list):
         return []
@@ -206,6 +239,22 @@ def uniq_strs(items: List[str]) -> List[str]:
         seen.add(v)
         out.append(v)
     return out
+
+
+def normalize_row_signals(row: Dict[str, Any]) -> Dict[str, Any]:
+    status = str(row.get("status", "todo"))
+    confidence = parse_confidence(row.get("confidence"), status_default_confidence(status))
+    evidence = to_str_list(row.get("evidence"))
+    if not evidence:
+        source_ref = str(row.get("source_ref", "")).strip()
+        if source_ref:
+            evidence = [f"source_ref={source_ref}"]
+    row["confidence"] = confidence
+    row["evidence"] = evidence
+    row["evidence_count"] = parse_int(row.get("evidence_count"), len(evidence))
+    if row["evidence_count"] < 0:
+        row["evidence_count"] = len(evidence)
+    return row
 
 
 def load_execution_table(project_root: Path, table_arg: str | None) -> Tuple[Path | None, Dict[str, Any]]:
@@ -436,6 +485,11 @@ def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict
         feat_title = str(state.get("title") or feat_id)
         feat_status = str(state.get("status") or "proposal")
         feat_priority = parse_int(item.get("priority"), idx + 1)
+        counters = state.get("counters", {}) if isinstance(state.get("counters"), dict) else {}
+        gate_fail_streak = max(0, parse_int(counters.get("gate_fail_streak"), 0))
+        no_progress_rounds = max(0, parse_int(counters.get("no_progress_rounds"), 0))
+        round_count = max(0, parse_int(counters.get("round_count"), 0))
+        state_current_task = str(state.get("current_task_id") or "")
 
         task = pick_feat_task([t for t in tasks if isinstance(t, dict)])
         if task:
@@ -454,6 +508,7 @@ def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict
                 "branch": str(state.get("branch") or ""),
                 "worktree": str(state.get("worktree_path") or ""),
             }
+            task_gate_result = str(task.get("gate_result") or "")
         else:
             row_id = f"bagakit-ft:{feat_id}"
             row_title = feat_title
@@ -466,6 +521,35 @@ def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict
                 "branch": str(state.get("branch") or ""),
                 "worktree": str(state.get("worktree_path") or ""),
             }
+            task_gate_result = ""
+
+        confidence = status_default_confidence(task_status)
+        confidence -= min(gate_fail_streak, 4) * 0.08
+        confidence -= min(no_progress_rounds, 3) * 0.06
+        if task_gate_result == "pass":
+            confidence += 0.06
+        elif task_gate_result == "fail":
+            confidence -= 0.10
+        if feat_status == "blocked":
+            confidence = min(confidence, 0.30)
+        confidence = max(0.05, min(0.99, confidence))
+
+        evidence: List[str] = [
+            f"feat_status={feat_status}",
+            f"task_status={task_status}",
+        ]
+        if state_current_task:
+            evidence.append(f"current_task={state_current_task}")
+        if task:
+            evidence.append(f"selected_task={str(task.get('id') or '')}")
+        if gate_fail_streak > 0:
+            evidence.append(f"gate_fail_streak={gate_fail_streak}")
+        if no_progress_rounds > 0:
+            evidence.append(f"no_progress_rounds={no_progress_rounds}")
+        if round_count > 0:
+            evidence.append(f"round_count={round_count}")
+        if task_gate_result:
+            evidence.append(f"task_gate_result={task_gate_result}")
 
         rows.append(
             {
@@ -478,6 +562,8 @@ def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict
                 "title": row_title,
                 "source_ref": source_ref,
                 "actionable": task_status in {"todo", "in_progress"},
+                "confidence": confidence,
+                "evidence": evidence,
                 **extra,
             }
         )
@@ -555,6 +641,26 @@ def collect_openspec(project_root: Path, adapter: Dict[str, Any]) -> List[Dict[s
             row_id = f"openspec:{change_name}:change"
             source_ref = str(proposal_file.relative_to(project_root)) if proposal_file.exists() else str(change_dir.relative_to(project_root))
 
+        confidence = status_default_confidence(status)
+        if unchecked:
+            confidence += 0.05
+        if not tasks_file.exists():
+            confidence -= 0.20
+        if status == "done":
+            confidence = min(confidence, 0.20)
+        confidence = max(0.05, min(0.95, confidence))
+
+        evidence: List[str] = [
+            f"unchecked_tasks={len(unchecked)}",
+            f"checked_tasks={len(checked)}",
+        ]
+        if tasks_file.exists():
+            evidence.append(f"tasks_file={tasks_file.relative_to(project_root)}")
+        else:
+            evidence.append("tasks_file=missing")
+        if unchecked:
+            evidence.append(f"next_task_line={unchecked[0]['index']}")
+
         rows.append(
             {
                 "id": row_id,
@@ -566,6 +672,8 @@ def collect_openspec(project_root: Path, adapter: Dict[str, Any]) -> List[Dict[s
                 "title": f"{title} / {task_label}",
                 "source_ref": source_ref,
                 "actionable": status in {"todo", "in_progress"},
+                "confidence": confidence,
+                "evidence": evidence,
                 "change": change_name,
             }
         )
@@ -608,6 +716,9 @@ def collect_manual(project_root: Path, adapter: Dict[str, Any]) -> List[Dict[str
             "files_to_touch": to_str_list(raw.get("files_to_touch")),
             "commands": to_str_list(raw.get("commands")),
             "risks": to_str_list(raw.get("risks")),
+            "confidence": parse_confidence(raw.get("confidence"), status_default_confidence(status)),
+            "evidence": to_str_list(raw.get("evidence")),
+            "evidence_count": parse_int(raw.get("evidence_count"), len(to_str_list(raw.get("evidence")))),
         }
         rows.append(row)
 
@@ -643,9 +754,13 @@ def collect_rows(project_root: Path, table: Dict[str, Any]) -> List[Dict[str, An
 
         rows.extend(collect_rows_for_adapter(project_root, adapter))
 
+    rows = [normalize_row_signals(row) for row in rows]
+
     rows.sort(
         key=lambda row: (
             STATUS_RANK.get(str(row.get("status")), 9),
+            -parse_confidence(row.get("confidence"), status_default_confidence(str(row.get("status", "")))),
+            -parse_int(row.get("evidence_count"), len(to_str_list(row.get("evidence")))),
             -parse_int(row.get("weight"), 0),
             parse_int(row.get("priority"), 10**9),
             str(row.get("id", "")),
@@ -662,6 +777,16 @@ def truncate_rows(rows: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]
 
 def validate_table_quality(table: Dict[str, Any]) -> List[str]:
     issues: List[str] = []
+
+    selection = table.get("selection")
+    if not isinstance(selection, dict):
+        issues.append("selection must be an object")
+    else:
+        strategy = str(selection.get("strategy", "")).strip()
+        if strategy != SELECTION_STRATEGY:
+            issues.append(
+                f"selection.strategy must be '{SELECTION_STRATEGY}'"
+            )
 
     detection = table.get("detection")
     if not isinstance(detection, dict):
@@ -747,6 +872,15 @@ def validate_table_quality(table: Dict[str, Any]) -> List[str]:
                         issues.append(f"{prefix} files_to_touch must have at least 1 path")
                     if len(to_str_list(row.get("commands"))) < 1:
                         issues.append(f"{prefix} commands must have at least 1 command")
+                    confidence_raw = row.get("confidence")
+                    if confidence_raw is None:
+                        issues.append(f"{prefix} missing required field: confidence")
+                    else:
+                        confidence = parse_confidence_strict(confidence_raw)
+                        if confidence is None:
+                            issues.append(f"{prefix} confidence must be a number between 0 and 1")
+                    if len(to_str_list(row.get("evidence"))) < 1:
+                        issues.append(f"{prefix} evidence must have at least 1 item")
 
     if not enabled_adapters:
         issues.append("at least one adapter must be enabled")
@@ -891,8 +1025,14 @@ def cmd_plan(args: argparse.Namespace) -> int:
         return 0
 
     for row in rows:
+        confidence = parse_confidence(
+            row.get("confidence"),
+            status_default_confidence(str(row.get("status", ""))),
+        )
+        evidence_count = parse_int(row.get("evidence_count"), len(to_str_list(row.get("evidence"))))
         print(
-            f"{row['status']:<12} {row['system']:<10} {row['id']:<40} {row['title']}"
+            f"{row['status']:<12} conf={confidence:.2f} ev={evidence_count:<2} "
+            f"{row['system']:<10} {row['id']:<40} {row['title']}"
         )
     return 0
 
@@ -958,11 +1098,19 @@ def cmd_guide(args: argparse.Namespace) -> int:
         "guidance": guidance,
     }
     if target_row:
+        target_confidence = parse_confidence(
+            target_row.get("confidence"),
+            status_default_confidence(str(target_row.get("status", ""))),
+        )
+        target_evidence = to_str_list(target_row.get("evidence"))
         payload["target_row"] = {
             "id": target_row.get("id", ""),
             "title": target_row.get("title", ""),
             "status": target_row.get("status", ""),
             "source_ref": target_row.get("source_ref", ""),
+            "confidence": target_confidence,
+            "evidence": target_evidence,
+            "evidence_count": parse_int(target_row.get("evidence_count"), len(target_evidence)),
         }
 
     if args.json:
@@ -970,10 +1118,20 @@ def cmd_guide(args: argparse.Namespace) -> int:
         return 0
 
     if target_row:
+        confidence = parse_confidence(
+            target_row.get("confidence"),
+            status_default_confidence(str(target_row.get("status", ""))),
+        )
+        evidence = to_str_list(target_row.get("evidence"))
         print(
             f"target: {target_row.get('id','')} ({target_row.get('status','')}) {target_row.get('title','')}"
         )
         print(f"source: {target_row.get('source_ref','')}")
+        print(f"confidence: {confidence:.2f}")
+        if evidence:
+            print("evidence:")
+            for item in evidence:
+                print(f"- {item}")
     print(f"system: {system}")
     print("analyze_when:")
     for item in guidance["analyze_when"]:
@@ -1001,6 +1159,9 @@ def row_to_feature(row: Dict[str, Any]) -> Dict[str, Any]:
     status = str(row.get("status", "todo"))
     if status not in ROW_STATUS:
         status = "todo"
+    confidence = parse_confidence(row.get("confidence"), status_default_confidence(status))
+    evidence = to_str_list(row.get("evidence"))
+    evidence_count = parse_int(row.get("evidence_count"), len(evidence))
 
     acceptance = to_str_list(row.get("acceptance_criteria"))
     if not acceptance:
@@ -1031,6 +1192,9 @@ def row_to_feature(row: Dict[str, Any]) -> Dict[str, Any]:
         "why_now": why_now,
         "updates": [f"{utc_now()} synced from bk-execution-table"],
         "managed_by": "execution-table",
+        "confidence": confidence,
+        "evidence": evidence,
+        "evidence_count": evidence_count,
         "source_system": str(row.get("system", "")),
         "source_item": str(row.get("id", "")),
         "source_ref": str(row.get("source_ref", "")),

@@ -23,6 +23,7 @@ bash .bagakit/long-run/check_and_resume.sh
 It is the single source of truth for:
 - whether harness + execution-table quality gates pass
 - the top-ranked execution rows
+- confidence/evidence signals used for ranking
 - guidance for the next actionable item
 - feature-list sync + suggested current item
 

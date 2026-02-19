@@ -38,13 +38,40 @@ def save_json(path: Path, data: Dict[str, Any]) -> None:
     tmp.replace(path)
 
 
-def feature_sort_key(feature: Dict[str, Any]) -> tuple[int, str]:
+def parse_confidence(value: Any, default: float = 0.5) -> float:
+    if isinstance(value, bool):
+        return default
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, min(1.0, parsed))
+
+
+def evidence_count(feature: Dict[str, Any]) -> int:
+    value = feature.get("evidence_count")
+    if not isinstance(value, bool):
+        try:
+            parsed = int(value)
+            if parsed >= 0:
+                return parsed
+        except (TypeError, ValueError):
+            pass
+    evidence = feature.get("evidence")
+    if isinstance(evidence, list):
+        return len([item for item in evidence if str(item).strip()])
+    return 0
+
+
+def feature_sort_key(feature: Dict[str, Any]) -> tuple[float, int, int, str]:
     raw_priority = feature.get("priority", 10**9)
     try:
         priority = int(raw_priority)
     except (TypeError, ValueError):
         priority = 10**9
-    return (priority, str(feature.get("id", "")))
+    confidence = parse_confidence(feature.get("confidence"), 0.5)
+    evidence = evidence_count(feature)
+    return (-confidence, -evidence, priority, str(feature.get("id", "")))
 
 
 def validate_feature_list(data: Dict[str, Any]) -> List[str]:
@@ -86,6 +113,33 @@ def validate_feature_list(data: Dict[str, Any]) -> List[str]:
                 int(item["priority"])
             except (TypeError, ValueError):
                 errors.append(f"{prefix}: priority must be integer-like")
+
+        if "confidence" in item:
+            value = item.get("confidence")
+            if isinstance(value, bool):
+                errors.append(f"{prefix}: confidence must be a number between 0 and 1")
+            else:
+                try:
+                    conf = float(value)
+                except (TypeError, ValueError):
+                    errors.append(f"{prefix}: confidence must be a number between 0 and 1")
+                else:
+                    if conf < 0.0 or conf > 1.0:
+                        errors.append(f"{prefix}: confidence must be between 0 and 1")
+
+        evidence = item.get("evidence")
+        if evidence is not None:
+            if not isinstance(evidence, list) or not all(str(e).strip() for e in evidence):
+                errors.append(f"{prefix}: evidence must be an array of non-empty strings")
+
+        if "evidence_count" in item:
+            try:
+                cnt = int(item.get("evidence_count"))
+            except (TypeError, ValueError):
+                errors.append(f"{prefix}: evidence_count must be integer-like")
+            else:
+                if cnt < 0:
+                    errors.append(f"{prefix}: evidence_count must be >= 0")
 
         deps = item.get("dependencies")
         if deps is not None and not isinstance(deps, list):

@@ -42,6 +42,8 @@ Manual rows must include:
 - `acceptance_criteria` (at least 2 binary checks)
 - `files_to_touch` (at least 1 path)
 - `commands` (at least 1 executable command)
+- `confidence` (0~1 confidence score for execution success if picked now)
+- `evidence` (at least 1 concrete evidence line explaining confidence)
 - optional `risks`
 
 ## Quality Bar (must satisfy)

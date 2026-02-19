@@ -17,7 +17,7 @@ Reference:
 - Script validates quality (`validate-table`) before loop execution.
 
 2. Script-driven execution
-- Script normalizes rows, ranks actionable work, syncs `feature-list.json`, and enforces single-item progression.
+- Script normalizes rows, ranks actionable work by `status -> confidence -> evidence -> weight -> priority`, syncs `feature-list.json`, and enforces single-item progression.
 
 3. Quality contract
 - Planning must include: why now, exact files, commands/checks, verification expectation, risk/rollback.
@@ -94,7 +94,7 @@ Run one initializer pass with:
 
 Output must be a high-quality single-item handoff in:
 - `.bagakit/long-run/bk-execution-handoff.md`
-- end the response with `[[BAGAKIT]]`, adding `- LongRun: ...` as a peer line to `- LivingDoc: ...`
+- end the response with `[[BAGAKIT]]`, adding `- LongRun: ...`
 
 ### 6. Coding pass
 
@@ -105,7 +105,7 @@ Constraints:
 - exactly one execution item
 - commands/checks executed
 - update status to `done` or `blocked`
-- end the response with `[[BAGAKIT]]`, adding `- LongRun: ...` as a peer line to `- LivingDoc: ...`
+- end the response with `[[BAGAKIT]]`, adding `- LongRun: ...`
 
 ### 7. Close the iteration
 
@@ -124,6 +124,7 @@ Built-in adapter kinds:
 
 Custom/any system:
 - `manual` adapter with curated `rows[]` in execution table.
+- Manual rows should carry `confidence` (0~1) and `evidence[]` so ranking stays explainable.
 
 If no rows exist yet, `check_and_resume.sh` will now print explicit next actions instead of hard-failing the whole flow.
 
