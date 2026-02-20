@@ -5,6 +5,24 @@ description: Drive long-running delivery with an Agent-first detect stage and a 
 
 # Bagakit Long Run
 
+## Standalone-First Contract
+
+- This skill is standalone-first: it can run with only `long-run` runtime files and scripts.
+- Upstream systems are integrated through optional adapter contracts/signals in the execution table, never mandatory direct script calls.
+- The runtime loop is always driven by `.bagakit/long-run/check_and_resume.sh`.
+
+## When to Use
+
+- Work spans many sessions and needs deterministic single-item progression.
+- You need one normalized execution table that merges multiple upstream systems.
+- You need evidence-based row ordering (`status -> confidence -> evidence -> weight -> priority`).
+
+## When NOT to Use
+
+- Work is a tiny one-shot task and a long-running loop is unnecessary.
+- You want `long-run` to replace upstream domain semantics instead of normalize them.
+- You require mandatory hard coupling to one specific external skill flow.
+
 ## Role
 
 `long-run` is the execution driver in the Bagakit stack.
@@ -94,7 +112,7 @@ Execution table file:
 - `.bagakit/long-run/bk-execution-table.json`
 
 Built-in kinds:
-- `bagakit-ft`
+- `bagakit-ft` (optional contract adapter via `.bagakit/ft-harness/index/feats.json` + feat state/tasks files)
 - `openspec`
 - `manual` (for any other upstream system)
 
@@ -125,3 +143,7 @@ For manual rows, required fields include:
 - `bagakit_long_run_execution.py`: validate-table/detect/plan/next-action/guide/sync-feature-list
 - `bagakit_long_run_features.py`: feature list validate/summary/pick/set-status
 - `scripts_dev/test.sh`: self-test
+
+## Fallback Path
+
+- If detect output is not ready or has no actionable rows, stop coding execution, run `validate-table` + `doctor`, and record `[[BAGAKIT]]` with `LongRunStop` reason and retro.

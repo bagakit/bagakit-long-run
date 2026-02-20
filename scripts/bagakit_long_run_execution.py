@@ -487,24 +487,16 @@ def bagakit_ft_index_summary(root: Path) -> Dict[str, int]:
 def resolve_bagakit_ft_files(
     harness_dir: Path, feat_id: str, index_status: str
 ) -> tuple[Path, Path] | None:
-    # Final-state layout: archived feats live under feats-archived/.
-    candidates: List[Path] = []
-    if index_status == "archived":
-        candidates = [
-            harness_dir / "feats-archived" / feat_id,
-            harness_dir / "feats" / feat_id,
-        ]
-    else:
-        candidates = [
-            harness_dir / "feats" / feat_id,
-            harness_dir / "feats-archived" / feat_id,
-        ]
-
-    for feat_dir in candidates:
-        state_file = feat_dir / "state.json"
-        tasks_file = feat_dir / "tasks.json"
-        if state_file.exists() and tasks_file.exists():
-            return state_file, tasks_file
+    # Final-state layout is strict by status to avoid ambiguous source rows.
+    feat_dir = (
+        harness_dir / "feats-archived" / feat_id
+        if index_status == "archived"
+        else harness_dir / "feats" / feat_id
+    )
+    state_file = feat_dir / "state.json"
+    tasks_file = feat_dir / "tasks.json"
+    if state_file.exists() and tasks_file.exists():
+        return state_file, tasks_file
     return None
 
 
