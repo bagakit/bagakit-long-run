@@ -27,8 +27,13 @@ It is the single source of truth for:
 - guidance for the next actionable item
 - feature-list sync + suggested current item
 - structured next-action contract (`.bagakit/long-run/next-action.json`)
+- adapter diagnostics (for example `bagakit-ft` index rows vs collected rows)
 
 Rule: **Do not guess the next step**. Always run resume and follow its output.
+
+If resume reports no actionable rows:
+- do not fallback to done/blocked rows as current target,
+- first fix upstream mapping/data freshness (detect/table/index), then re-run resume.
 
 ## 2) Action Injection Requirement (Every Round)
 

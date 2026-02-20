@@ -275,6 +275,13 @@ def adapter_root(project_root: Path, adapter: Dict[str, Any]) -> Path:
     return (project_root / root).resolve()
 
 
+def rel_ref(path: Path, project_root: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(project_root.resolve()))
+    except ValueError:
+        return str(path.resolve())
+
+
 def read_json_key(data: Any, key: str) -> tuple[bool, Any]:
     if not isinstance(key, str) or not key.strip():
         return False, None
@@ -449,6 +456,58 @@ def pick_feat_task(tasks: List[Dict[str, Any]]) -> Dict[str, Any] | None:
     return None
 
 
+def bagakit_ft_index_summary(root: Path) -> Dict[str, int]:
+    index_file = root / FT_HARNESS_DIR / "index" / "feats.json"
+    if not index_file.exists():
+        return {"total": 0, "archived": 0}
+
+    try:
+        index_data = load_json(index_file)
+    except SystemExit:
+        return {"total": 0, "archived": 0}
+
+    feats = index_data.get("feats", [])
+    if not isinstance(feats, list):
+        return {"total": 0, "archived": 0}
+
+    total = 0
+    archived = 0
+    for item in feats:
+        if not isinstance(item, dict):
+            continue
+        feat_id = str(item.get("feat_id", "")).strip()
+        if not feat_id:
+            continue
+        total += 1
+        if str(item.get("status", "")).strip() == "archived":
+            archived += 1
+    return {"total": total, "archived": archived}
+
+
+def resolve_bagakit_ft_files(
+    harness_dir: Path, feat_id: str, index_status: str
+) -> tuple[Path, Path] | None:
+    # Final-state layout: archived feats live under feats-archived/.
+    candidates: List[Path] = []
+    if index_status == "archived":
+        candidates = [
+            harness_dir / "feats-archived" / feat_id,
+            harness_dir / "feats" / feat_id,
+        ]
+    else:
+        candidates = [
+            harness_dir / "feats" / feat_id,
+            harness_dir / "feats-archived" / feat_id,
+        ]
+
+    for feat_dir in candidates:
+        state_file = feat_dir / "state.json"
+        tasks_file = feat_dir / "tasks.json"
+        if state_file.exists() and tasks_file.exists():
+            return state_file, tasks_file
+    return None
+
+
 def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict[str, Any]]:
     root = adapter_root(project_root, adapter)
     harness_dir = root / FT_HARNESS_DIR
@@ -471,11 +530,11 @@ def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict
         if not feat_id:
             continue
 
-        feat_dir = harness_dir / "feats" / feat_id
-        state_file = feat_dir / "state.json"
-        tasks_file = feat_dir / "tasks.json"
-        if not state_file.exists() or not tasks_file.exists():
+        index_status = str(item.get("status") or "").strip()
+        files = resolve_bagakit_ft_files(harness_dir, feat_id, index_status)
+        if files is None:
             continue
+        state_file, tasks_file = files
 
         state = load_json(state_file)
         tasks_data = load_json(tasks_file)
@@ -502,7 +561,7 @@ def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict
             row_id = f"bagakit-ft:{feat_id}:{task_id or 'task'}"
             row_title = f"{feat_title} / {task_title}"
             row_priority = feat_priority * 100 + parse_task_rank(task)
-            source_ref = str(tasks_file.relative_to(project_root))
+            source_ref = rel_ref(tasks_file, project_root)
             extra: Dict[str, Any] = {
                 "feat_id": feat_id,
                 "task_id": task_id,
@@ -515,7 +574,7 @@ def collect_bagakit_ft(project_root: Path, adapter: Dict[str, Any]) -> List[Dict
             row_title = feat_title
             task_status = feat_to_row_status(feat_status)
             row_priority = feat_priority * 100
-            source_ref = str(state_file.relative_to(project_root))
+            source_ref = rel_ref(state_file, project_root)
             extra = {
                 "feat_id": feat_id,
                 "task_id": "",
@@ -780,7 +839,7 @@ def pick_next_row(rows: List[Dict[str, Any]]) -> Dict[str, Any] | None:
     actionable = [row for row in rows if bool(row.get("actionable"))]
     if actionable:
         return actionable[0]
-    return rows[0] if rows else None
+    return None
 
 
 def feature_sort_key(feature: Dict[str, Any]) -> tuple[float, int, int, str]:
@@ -1013,6 +1072,14 @@ def cmd_detect(args: argparse.Namespace) -> int:
             signal = "rows_found"
         else:
             signal = "detect_matched_no_rows"
+        adapter_warnings: List[str] = []
+        index_summary: Dict[str, int] | None = None
+        if kind == "bagakit-ft":
+            index_summary = bagakit_ft_index_summary(root)
+            if signal == "detect_matched_no_rows" and index_summary.get("total", 0) > 0:
+                adapter_warnings.append(
+                    "bagakit-ft index has feats but collector produced 0 rows; check feats/ vs feats-archived/ layout and state files"
+                )
         out.append(
             {
                 "name": str(adapter.get("name") or kind),
@@ -1023,6 +1090,8 @@ def cmd_detect(args: argparse.Namespace) -> int:
                 "row_count": row_count,
                 "detect_rules": detect_rules if isinstance(detect_rules, dict) else {},
                 "detect_summary": detect_summary,
+                "index_summary": index_summary or {},
+                "warnings": adapter_warnings,
             }
         )
 
@@ -1048,6 +1117,16 @@ def cmd_detect(args: argparse.Namespace) -> int:
         rules = item.get("detect_rules", {})
         if isinstance(rules, dict) and rules:
             print(f"  rules: {json.dumps(rules, ensure_ascii=False)}")
+        index_summary = item.get("index_summary", {})
+        if isinstance(index_summary, dict) and index_summary:
+            print(
+                "  index: total={total} archived={archived}".format(
+                    total=parse_int(index_summary.get("total"), 0),
+                    archived=parse_int(index_summary.get("archived"), 0),
+                )
+            )
+        for warning in to_str_list(item.get("warnings")):
+            print(f"  warn: {warning}")
     return 0
 
 
@@ -1231,11 +1310,17 @@ def cmd_guide(args: argparse.Namespace) -> int:
         target_row = next((r for r in rows if str(r.get("id")) == args.row_id), None)
     elif not args.system:
         actionable = [r for r in rows if r.get("actionable")]
-        target_row = actionable[0] if actionable else (rows[0] if rows else None)
+        target_row = actionable[0] if actionable else None
 
     system = str(args.system or (target_row.get("system") if target_row else "")).strip()
     if not system:
-        print("error: no target system found; provide --system or ensure rows exist", file=sys.stderr)
+        if rows:
+            print(
+                "error: no actionable rows found; provide --system/--row-id if you need non-actionable guidance",
+                file=sys.stderr,
+            )
+        else:
+            print("error: no target system found; provide --system or ensure rows exist", file=sys.stderr)
         return 1
 
     guidance = merge_guidance(table, system)
@@ -1365,8 +1450,10 @@ def cmd_sync_feature_list(args: argparse.Namespace) -> int:
     data = ensure_feature_doc(data)
     all_features = [f for f in data.get("features", []) if isinstance(f, dict)]
     manual = [f for f in all_features if str(f.get("managed_by", "")) != "execution-table"]
+    managed_existing = [f for f in all_features if str(f.get("managed_by", "")) == "execution-table"]
 
     generated = [row_to_feature(row) for row in rows]
+    generated_ids = {str(f.get("id", "")) for f in generated if str(f.get("id", ""))}
 
     manual_has_in_progress = any(str(f.get("status")) == "in_progress" for f in manual)
     in_progress_taken = manual_has_in_progress
@@ -1379,14 +1466,38 @@ def cmd_sync_feature_list(args: argparse.Namespace) -> int:
             else:
                 in_progress_taken = True
 
-    data["features"] = manual + generated
-    data["updated_at"] = utc_now()
+    now = utc_now()
+    tombstoned: List[Dict[str, Any]] = []
+    for feature in managed_existing:
+        fid = str(feature.get("id", "")).strip()
+        if not fid or fid in generated_ids:
+            continue
+        tombstone = dict(feature)
+        tombstone["managed_by"] = "execution-table"
+        tombstone["managed_state"] = "stale_missing_upstream"
+        tombstone["stale_since"] = str(tombstone.get("stale_since") or now)
+        status = str(tombstone.get("status", "todo")).strip()
+        if status in {"todo", "in_progress"}:
+            tombstone["status"] = "blocked"
+        updates = to_str_list(tombstone.get("updates"))
+        updates.append(f"{now} upstream row missing during sync; kept as tombstone")
+        tombstone["updates"] = updates
+        tombstoned.append(tombstone)
+
+    data["features"] = manual + generated + tombstoned
+    data["updated_at"] = now
 
     feature_file.parent.mkdir(parents=True, exist_ok=True)
     save_json(feature_file, data)
 
     print(f"synced feature list from execution rows: total_rows={len(rows)}")
-    print(f"manual_features_kept={len(manual)} managed_features={len(generated)}")
+    print(
+        "manual_features_kept={manual} managed_features={managed} managed_tombstones={tombstones}".format(
+            manual=len(manual),
+            managed=len(generated),
+            tombstones=len(tombstoned),
+        )
+    )
     print(f"feature_file={feature_file}")
     return 0
 

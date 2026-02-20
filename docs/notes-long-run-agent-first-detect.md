@@ -17,6 +17,7 @@ It should not hardcode every upstream system in control flow. Instead:
 Compatibility policy:
 - no hard dependency on external systems (for example OpenSpec).
 - external systems are optional adapters in execution-table; unavailable adapters must not break the loop.
+- adapter collectors must follow upstream final-state storage layout (for example `bagakit-ft` archived feats under `feats-archived/`).
 
 ## Why
 
@@ -59,3 +60,9 @@ Execution planning must include:
 - confidence (0~1) and concrete evidence lines for why this item should run now
 
 For unsupported upstream systems, use `kind=manual` rows with explicit execution fields.
+
+## Sync Stability Rule
+
+`sync-feature-list` must be loss-resistant:
+- if a managed upstream row temporarily disappears, keep a tombstone entry instead of deleting history immediately,
+- mark tombstones non-actionable (for example `blocked`) and require investigation via detect/doctor.

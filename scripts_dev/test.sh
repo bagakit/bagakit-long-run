@@ -107,35 +107,35 @@ echo "[test] validate harness"
 bash "${runtime_scripts_dir}/validate-long-run.sh" "$project"
 
 echo "[test] execution adapters: seed bagakit-ft + openspec"
-mkdir -p "${ft_harness_dir}/index" "${ft_harness_dir}/feats/f-20260215-sync-sample" "${project}/openspec/changes/add-health-check"
+mkdir -p "${ft_harness_dir}/index" "${ft_harness_dir}/feats-archived/f-20260215-sync-sample" "${project}/openspec/changes/add-health-check"
 cat > "${ft_harness_dir}/index/feats.json" <<'EOF'
 {
   "version": 1,
   "feats": [
     {
       "feat_id": "f-20260215-sync-sample",
-      "status": "in_progress",
+      "status": "archived",
       "priority": 1
     }
   ]
 }
 EOF
-cat > "${ft_harness_dir}/feats/f-20260215-sync-sample/state.json" <<'EOF'
+cat > "${ft_harness_dir}/feats-archived/f-20260215-sync-sample/state.json" <<'EOF'
 {
   "feat_id": "f-20260215-sync-sample",
   "title": "Sync Sample Feat",
-  "status": "in_progress",
+  "status": "archived",
   "branch": "feat/f-20260215-sync-sample",
   "worktree_path": ".worktrees/wt-f-20260215-sync-sample"
 }
 EOF
-cat > "${ft_harness_dir}/feats/f-20260215-sync-sample/tasks.json" <<'EOF'
+cat > "${ft_harness_dir}/feats-archived/f-20260215-sync-sample/tasks.json" <<'EOF'
 {
   "tasks": [
     {
       "id": "T-001",
       "title": "Implement sync",
-      "status": "in_progress"
+      "status": "done"
     }
   ]
 }
@@ -150,10 +150,74 @@ EOF
 
 echo "[test] execution plan + sync"
 python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" detect "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 - <<PY
+import json
+import subprocess
+
+out = subprocess.check_output(
+    [
+        "python3",
+        r"${runtime_scripts_dir}/bagakit_long_run_execution.py",
+        "detect",
+        r"${project}",
+        "--table",
+        r"${harness_dir}/bk-execution-table.json",
+        "--json",
+    ],
+    text=True,
+)
+data = json.loads(out)
+adapters = {item.get("kind"): item for item in data.get("adapters", []) if isinstance(item, dict)}
+ft = adapters.get("bagakit-ft")
+if not ft:
+    raise SystemExit("missing bagakit-ft detect result")
+if int(ft.get("row_count", 0)) < 1:
+    raise SystemExit("expected bagakit-ft collector to read archived feat rows")
+PY
 python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" plan "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
 python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" next-action "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" --json >/dev/null
 python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" guide "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
 python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" sync-feature-list "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" >/dev/null
+
+echo "[test] guide should fail when only non-actionable rows remain"
+python3 - <<PY
+import json
+from pathlib import Path
+p = Path(r"${harness_dir}/bk-execution-table.json")
+data = json.loads(p.read_text(encoding="utf-8"))
+for adapter in data.get("adapters", []):
+    if not isinstance(adapter, dict):
+        continue
+    kind = str(adapter.get("kind", ""))
+    if kind == "bagakit-ft":
+        adapter["enabled"] = True
+    elif kind in {"openspec", "manual"}:
+        adapter["enabled"] = False
+p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+PY
+if python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" guide "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then
+  echo "[test] expected guide to fail when no actionable rows exist" >&2
+  exit 1
+fi
+
+echo "[test] sync should keep tombstone when managed rows disappear upstream"
+cat > "${ft_harness_dir}/index/feats.json" <<'EOF'
+{
+  "version": 1,
+  "feats": []
+}
+EOF
+python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" sync-feature-list "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" >/dev/null
+python3 - <<PY
+import json
+from pathlib import Path
+p = Path(r"${harness_dir}/feature-list.json")
+data = json.loads(p.read_text(encoding="utf-8"))
+features = [f for f in data.get("features", []) if isinstance(f, dict)]
+tombstones = [f for f in features if f.get("managed_state") == "stale_missing_upstream"]
+if not tombstones:
+    raise SystemExit("expected tombstone managed features when upstream rows disappear")
+PY
 
 echo "[test] check+resume should emit structured next-action contract"
 export BAGAKIT_LONG_RUN_SKILL_DIR="${skill_root}"

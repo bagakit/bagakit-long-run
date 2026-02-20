@@ -52,7 +52,7 @@ python3 "$execution_tool" plan "$project_root" --table "$execution_table" --limi
 echo
 echo "== Guidance for next item =="
 if ! python3 "$execution_tool" guide "$project_root" --table "$execution_table"; then
-  echo "warn: no target system rows available for guidance." >&2
+  echo "warn: no actionable row available for guidance." >&2
   echo "next: add upstream tasks/spec items, run detect prompt, then re-run: bash .bagakit/long-run/check_and_resume.sh" >&2
 fi
 

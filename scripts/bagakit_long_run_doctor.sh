@@ -51,6 +51,31 @@ fi
 echo
 echo "== doctor: execution adapters =="
 python3 "$execution_tool" detect "$project_root" --table "$execution_table_file" || true
+detect_warnings="$(python3 - "$execution_tool" "$project_root" "$execution_table_file" <<'PY'
+import json
+import subprocess
+import sys
+
+tool, root, table = sys.argv[1], sys.argv[2], sys.argv[3]
+raw = subprocess.check_output(
+    ["python3", tool, "detect", root, "--table", table, "--json"],
+    text=True,
+)
+payload = json.loads(raw)
+for adapter in payload.get("adapters", []):
+    if not isinstance(adapter, dict):
+        continue
+    name = str(adapter.get("name", "adapter"))
+    for warning in adapter.get("warnings", []):
+        print(f"{name}: {warning}")
+PY
+)" || true
+if [[ -n "${detect_warnings}" ]]; then
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    warn "execution detect: ${line}"
+  done <<<"$detect_warnings"
+fi
 echo
 echo "== doctor: execution rows (top) =="
 python3 "$execution_tool" plan "$project_root" --table "$execution_table_file" --limit 8 || true
