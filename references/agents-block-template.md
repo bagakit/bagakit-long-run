@@ -29,5 +29,5 @@ Detect Rules:
 
 Validation:
 - `bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .`
-- `bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_doctor.sh" .`
+- `bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-doctor.sh" .`
 <!-- BAGAKIT:LONGRUN:END -->

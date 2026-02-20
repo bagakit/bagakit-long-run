@@ -98,7 +98,7 @@ copy_managed_template "${refs_dir}/coding-prompt-template.md" "${harness_dir}/co
 copy_template "${refs_dir}/feature-list-template.json" "${harness_dir}/feature-list.json"
 copy_template "${refs_dir}/bk-execution-handoff-template.md" "${harness_dir}/bk-execution-handoff.md"
 copy_template "${refs_dir}/bk-execution-table-template.json" "${harness_dir}/bk-execution-table.json"
-copy_managed_template "${refs_dir}/check-and-resume-sh-template.sh" "${harness_dir}/check_and_resume.sh"
+copy_managed_template "${refs_dir}/check-and-resume-sh-template.md" "${harness_dir}/check_and_resume.sh"
 
 # Final-state cleanup: remove old long-run artifacts.
 remove_legacy_file "${harness_dir}/init.sh"

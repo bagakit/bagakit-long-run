@@ -12,8 +12,8 @@ install-skill:
 	mkdir -p "$(SKILL_DIR)"
 	cp -R SKILL.md README.md references scripts "$(SKILL_DIR)/"
 	find "$(SKILL_DIR)/scripts" -type f -name "*.sh" -exec chmod +x {} +
-	chmod +x "$(SKILL_DIR)/scripts/bagakit_long_run_features.py"
-	chmod +x "$(SKILL_DIR)/scripts/bagakit_long_run_execution.py"
+	chmod +x "$(SKILL_DIR)/scripts/long-run-features.py"
+	chmod +x "$(SKILL_DIR)/scripts/long-run-execution.py"
 	@echo "installed: $(SKILL_DIR)"
 
 package-skill: clean

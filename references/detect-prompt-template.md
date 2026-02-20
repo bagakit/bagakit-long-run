@@ -62,7 +62,7 @@ Planning fields must make the coding pass deterministic:
 Run:
 
 ```bash
-python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" validate-table .
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" validate-table .
 ```
 
 If validation fails, fix the table and re-run until it passes.

@@ -83,7 +83,7 @@ grep -q "Confidence=" "${harness_dir}/bk-execution-handoff.md"
 grep -q "LongRunStop:" "${harness_dir}/bk-execution-handoff.md"
 
 echo "[test] detect quality gate should fail when draft"
-if python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" validate-table "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then
+if python3 "${runtime_scripts_dir}/long-run-execution.py" validate-table "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then
   echo "[test] expected validate-table to fail when detection.status=draft" >&2
   exit 1
 fi
@@ -149,7 +149,7 @@ cat > "${project}/openspec/changes/add-health-check/tasks.md" <<'EOF'
 EOF
 
 echo "[test] execution plan + sync"
-python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" detect "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 "${runtime_scripts_dir}/long-run-execution.py" detect "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
 python3 - <<PY
 import json
 import subprocess
@@ -157,7 +157,7 @@ import subprocess
 out = subprocess.check_output(
     [
         "python3",
-        r"${runtime_scripts_dir}/bagakit_long_run_execution.py",
+        r"${runtime_scripts_dir}/long-run-execution.py",
         "detect",
         r"${project}",
         "--table",
@@ -174,10 +174,10 @@ if not ft:
 if int(ft.get("row_count", 0)) < 1:
     raise SystemExit("expected bagakit-ft collector to read archived feat rows")
 PY
-python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" plan "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
-python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" next-action "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" --json >/dev/null
-python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" guide "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
-python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" sync-feature-list "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" >/dev/null
+python3 "${runtime_scripts_dir}/long-run-execution.py" plan "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 "${runtime_scripts_dir}/long-run-execution.py" next-action "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" --json >/dev/null
+python3 "${runtime_scripts_dir}/long-run-execution.py" guide "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null
+python3 "${runtime_scripts_dir}/long-run-execution.py" sync-feature-list "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" >/dev/null
 
 echo "[test] guide should fail when only non-actionable rows remain"
 python3 - <<PY
@@ -195,7 +195,7 @@ for adapter in data.get("adapters", []):
         adapter["enabled"] = False
 p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
 PY
-if python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" guide "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then
+if python3 "${runtime_scripts_dir}/long-run-execution.py" guide "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then
   echo "[test] expected guide to fail when no actionable rows exist" >&2
   exit 1
 fi
@@ -207,7 +207,7 @@ cat > "${ft_harness_dir}/index/feats.json" <<'EOF'
   "feats": []
 }
 EOF
-python3 "${runtime_scripts_dir}/bagakit_long_run_execution.py" sync-feature-list "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" >/dev/null
+python3 "${runtime_scripts_dir}/long-run-execution.py" sync-feature-list "${project}" --table "${harness_dir}/bk-execution-table.json" --feature-file "${harness_dir}/feature-list.json" >/dev/null
 python3 - <<PY
 import json
 from pathlib import Path
@@ -236,12 +236,12 @@ if "Confidence=" not in str(data.get("footer_line", "")):
 PY
 
 echo "[test] doctor"
-bash "${runtime_scripts_dir}/bagakit_long_run_doctor.sh" "$project"
+bash "${runtime_scripts_dir}/long-run-doctor.sh" "$project"
 
 echo "[test] idempotent apply"
 bash "${runtime_scripts_dir}/apply-long-run.sh" "$project"
 
 echo "[test] python tool summary"
-python3 "${runtime_scripts_dir}/bagakit_long_run_features.py" summary "${harness_dir}/feature-list.json" >/dev/null
+python3 "${runtime_scripts_dir}/long-run-features.py" summary "${harness_dir}/feature-list.json" >/dev/null
 
 echo "[test] pass (${skill_root})"

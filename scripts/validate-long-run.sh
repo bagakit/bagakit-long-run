@@ -23,8 +23,8 @@ coding_prompt="${harness_dir}/coding_prompt.md"
 resume_script="${harness_dir}/check_and_resume.sh"
 legacy_init_script="${harness_dir}/init.sh"
 legacy_initial_prompt="${harness_dir}/initial_prompt.md"
-feature_tool="${script_dir}/bagakit_long_run_features.py"
-execution_tool="${script_dir}/bagakit_long_run_execution.py"
+feature_tool="${script_dir}/long-run-features.py"
+execution_tool="${script_dir}/long-run-execution.py"
 
 errors=0
 warnings=0

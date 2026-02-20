@@ -16,8 +16,8 @@ harness_dir="${project_root}/.bagakit/long-run"
 feature_file="${harness_dir}/feature-list.json"
 handoff_file="${harness_dir}/bk-execution-handoff.md"
 execution_table_file="${harness_dir}/bk-execution-table.json"
-feature_tool="${script_dir}/bagakit_long_run_features.py"
-execution_tool="${script_dir}/bagakit_long_run_execution.py"
+feature_tool="${script_dir}/long-run-features.py"
+execution_tool="${script_dir}/long-run-execution.py"
 
 warnings=0
 

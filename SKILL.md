@@ -54,6 +54,14 @@ It is not responsible for:
 - every detect/initializer/coding response ends with `[[BAGAKIT]]` and a peer line `- LongRun: Item=...; Status=...; Confidence=...; Evidence=...; Next=...`.
 - if you stop a session without continuing the loop right now, add a peer line `- LongRunStop: Reason=...; Retro=...` explaining why you stop (and why the plan cannot be fully completed if not done).
 
+## `[[BAGAKIT]]` Footer Contract
+
+```text
+[[BAGAKIT]]
+- LongRun: Item=<id>; Status=<in_progress|done|blocked>; Confidence=<0~1>; Evidence=<commands/checks>; Next=<resume command>
+- LongRunStop: Reason=<why stop now>; Retro=<why not fully complete and what unblocks next> (only when stopping loop)
+```
+
 ## Workflow
 
 1) Apply harness files
@@ -73,7 +81,7 @@ Apply also injects/updates a managed AGENTS block (`<!-- BAGAKIT:LONGRUN:START -
 3) Validate detect output quality
 
 ```bash
-python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_execution.py" validate-table .
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" validate-table .
 ```
 
 4) Check and resume (every round)
@@ -101,7 +109,7 @@ This command also writes a structured next-action contract:
 
 ```bash
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .
-bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/bagakit_long_run_doctor.sh" .
+bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-doctor.sh" .
 ```
 
 Then re-run `bash .bagakit/long-run/check_and_resume.sh` to actively pick the next actionable item.
@@ -139,10 +147,23 @@ For manual rows, required fields include:
 
 - `apply-long-run.sh`: scaffold runtime files
 - `validate-long-run.sh`: validate harness + execution-table quality
-- `bagakit_long_run_doctor.sh`: diagnose loop health and next actions
-- `bagakit_long_run_execution.py`: validate-table/detect/plan/next-action/guide/sync-feature-list
-- `bagakit_long_run_features.py`: feature list validate/summary/pick/set-status
+- `long-run-doctor.sh`: diagnose loop health and next actions
+- `long-run-execution.py`: validate-table/detect/plan/next-action/guide/sync-feature-list
+- `long-run-features.py`: feature list validate/summary/pick/set-status
 - `scripts_dev/test.sh`: self-test
+
+## Output Routes and Default Mode
+
+- Deliverable type: process-driver loop that routes upstream execution rows into deterministic single-item action execution.
+- Action handoff output (default route): `.bagakit/long-run/next-action.json` plus synchronized `feature-list.json`/`bk-execution-handoff.md` as execution-ready artifacts.
+- Memory handoff output (default route): `bk-execution-handoff.md` session summary and `[[BAGAKIT]]` evidence lines; memory can be `none` when no durable update is needed with explicit rationale.
+- Optional adapter routes: upstream systems (`bagakit-ft`, `openspec`, manual adapters) are integrated through optional adapter contracts in execution-table rows.
+- Adapter policy: optional, rule-driven routing with standalone-safe fallback to local long-run artifacts.
+
+## Archive Gate (Completion Handoff)
+
+- Completion requires explicit destination path/id evidence for `action_handoff` (next-action + selected row outputs) and `memory_handoff` (handoff/memory destination, or explicit `none` rationale).
+- Do not mark completion until loop gate conditions pass (`validate-long-run` + doctor/verification evidence) and archive destination reporting is present.
 
 ## Fallback Path
 
