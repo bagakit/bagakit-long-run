@@ -21,6 +21,8 @@ detect_prompt="${harness_dir}/detect_prompt.md"
 initializer_prompt="${harness_dir}/initializer_prompt.md"
 coding_prompt="${harness_dir}/coding_prompt.md"
 resume_script="${harness_dir}/check_and_resume.sh"
+ralphloop_script="${harness_dir}/ralphloop.sh"
+project_profile_file="${harness_dir}/project-profile.json"
 heartbeat_config_file="${harness_dir}/heartbeat.config.json"
 heartbeat_schedules_file="${harness_dir}/heartbeat-schedules.json"
 heartbeat_state_file="${harness_dir}/heartbeat.state.json"
@@ -32,6 +34,7 @@ legacy_init_script="${harness_dir}/init.sh"
 legacy_initial_prompt="${harness_dir}/initial_prompt.md"
 feature_tool="${script_dir}/long-run-features.py"
 execution_tool="${script_dir}/long-run-execution.py"
+loop_tool="${script_dir}/long-run-loop.py"
 heartbeat_tool="${script_dir}/long-run-heartbeat.py"
 
 errors=0
@@ -54,7 +57,7 @@ fi
 if [[ ! -d "$harness_dir" ]]; then
   fail "missing harness dir: ${harness_dir}"
 else
-  for f in "$feature_file" "$initializer_prompt" "$coding_prompt" "$resume_script" "$execution_table_file" "$detect_prompt"; do
+  for f in "$feature_file" "$initializer_prompt" "$coding_prompt" "$resume_script" "$ralphloop_script" "$project_profile_file" "$execution_table_file" "$detect_prompt"; do
     if [[ ! -f "$f" ]]; then
       fail "missing required harness file: ${f}"
     fi
@@ -67,6 +70,34 @@ fi
 
 if [[ -f "$resume_script" && ! -x "$resume_script" ]]; then
   warn "resume script is not executable: ${resume_script}"
+fi
+if [[ -f "$ralphloop_script" && ! -x "$ralphloop_script" ]]; then
+  warn "ralphloop script is not executable: ${ralphloop_script}"
+fi
+if [[ -f "$project_profile_file" ]]; then
+  if ! python3 - "$project_profile_file" >/dev/null <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+if not isinstance(payload, dict):
+    raise SystemExit(1)
+launcher = payload.get("launcher", {})
+if not isinstance(launcher, dict):
+    raise SystemExit(1)
+if not str(launcher.get("route", "")).strip():
+    raise SystemExit(1)
+if not str(launcher.get("command", "")).strip():
+    raise SystemExit(1)
+PY
+  then
+    fail "project profile validation failed: ${project_profile_file}"
+  fi
+fi
+if [[ ! -f "$loop_tool" ]]; then
+  fail "missing loop tool: ${loop_tool}"
 fi
 
 for legacy in "$legacy_init_script" "$legacy_initial_prompt"; do
@@ -201,6 +232,7 @@ if [[ ! -f "$agents_file" ]]; then
 else
   grep -q "<!-- BAGAKIT:LONGRUN:START -->" "$agents_file" || fail "missing BAGAKIT long-run managed block start in ${agents_file}"
   grep -q "<!-- BAGAKIT:LONGRUN:END -->" "$agents_file" || fail "missing BAGAKIT long-run managed block end in ${agents_file}"
+  grep -q "ralphloop.sh pulse --endless" "$agents_file" || fail "AGENTS long-run block missing preferred ralphloop endless entry command"
   grep -q "check_and_resume.sh" "$agents_file" || fail "AGENTS long-run block missing explicit resume loop command"
   grep -q "\[\[BAGAKIT\]\]" "$agents_file" || fail "AGENTS long-run block missing [[BAGAKIT]] response contract"
   grep -q "LongRun:" "$agents_file" || fail "AGENTS long-run block missing '- LongRun:' response contract"

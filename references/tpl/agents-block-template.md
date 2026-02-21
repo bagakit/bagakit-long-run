@@ -9,11 +9,12 @@ Tooling:
 - Resolve the installed skill dir as: `export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-long-run}"`
 
 Loop Protocol (every round):
-1. Run resume command `bash .bagakit/long-run/check_and_resume.sh`.
-2. If detect is not ready, run `.bagakit/long-run/detect_prompt.md`, update `.bagakit/long-run/bk-execution-table.json`, then re-run resume.
-3. Run initializer pass with `.bagakit/long-run/initializer_prompt.md` and produce a single-item handoff.
-4. Run coding pass with `.bagakit/long-run/coding_prompt.md`, execute exactly one item, and update status/check evidence.
-5. After each pass, re-run `bash .bagakit/long-run/check_and_resume.sh` to actively pick the next actionable item and continue.
+1. Preferred entry: `bash .bagakit/long-run/ralphloop.sh pulse --endless` (this runs resume and handles no-next-step expansion prompt generation).
+2. Fallback resume command: `bash .bagakit/long-run/check_and_resume.sh`.
+3. If detect is not ready, run `.bagakit/long-run/detect_prompt.md`, update `.bagakit/long-run/bk-execution-table.json`, then re-run resume.
+4. Run initializer pass with `.bagakit/long-run/initializer_prompt.md` and produce a single-item handoff.
+5. Run coding pass with `.bagakit/long-run/coding_prompt.md`, execute exactly one item, and update status/check evidence.
+6. After each pass, re-run `bash .bagakit/long-run/check_and_resume.sh` to actively pick the next actionable item and continue.
 
 Response Driver (every long-run pass):
 - End detect/initializer/coding responses with the project footer block `[[BAGAKIT]]`.
@@ -38,6 +39,7 @@ Detect Rules:
 - Detect is agent-driven and rule-based; do not hardcode project-specific names in scripts.
 - Map upstream systems to adapters (`bagakit-ft`, `openspec`, `manual`) in `.bagakit/long-run/bk-execution-table.json`.
 - Every execution row must include: why-now, binary acceptance criteria, files to touch, commands, and risk/rollback notes.
+- If no actionable row remains and loop is in `--endless` mode, use `.bagakit/long-run/endless_expand_prompt.md` to expand plan first, then continue.
 
 Validation:
 - `bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .`

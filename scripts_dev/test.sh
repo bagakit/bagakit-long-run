@@ -30,7 +30,7 @@ for phrase in required_phrases:
         raise SystemExit(f"missing policy phrase in docs/notes-long-run-agent-first-detect.md: {phrase}")
 
 resume_doc = (root / "docs" / "guidelines-long-run-resume.md").read_text(encoding="utf-8")
-for phrase in ("bash .bagakit/long-run/check_and_resume.sh", "LongRunStop:"):
+for phrase in ("bash .bagakit/long-run/check_and_resume.sh", "ralphloop.sh pulse --endless", "LongRunStop:"):
     if phrase not in resume_doc:
         raise SystemExit(f"missing resume/stop contract phrase in docs/guidelines-long-run-resume.md: {phrase}")
 
@@ -57,6 +57,8 @@ bash "${runtime_scripts_dir}/apply-long-run.sh" "$project"
 [[ -f "${harness_dir}/bk-execution-table.json" ]]
 [[ -f "${harness_dir}/detect_prompt.md" ]]
 [[ -f "${harness_dir}/check_and_resume.sh" ]]
+[[ -f "${harness_dir}/ralphloop.sh" ]]
+[[ -f "${harness_dir}/project-profile.json" ]]
 [[ -f "${harness_dir}/heartbeat.config.json" ]]
 [[ -f "${harness_dir}/heartbeat-schedules.json" ]]
 [[ -f "${harness_dir}/heartbeat.state.json" ]]
@@ -66,8 +68,10 @@ bash "${runtime_scripts_dir}/apply-long-run.sh" "$project"
 [[ ! -e "${harness_dir}/init.sh" ]]
 [[ ! -e "${harness_dir}/initial_prompt.md" ]]
 [[ -f "${project}/AGENTS.md" ]]
+[[ -f "${project}/ralphloop" ]]
 grep -q "<!-- BAGAKIT:LONGRUN:START -->" "${project}/AGENTS.md"
 grep -q "<!-- BAGAKIT:LONGRUN:END -->" "${project}/AGENTS.md"
+grep -q "ralphloop.sh pulse --endless" "${project}/AGENTS.md"
 grep -q "\[\[BAGAKIT\]\]" "${project}/AGENTS.md"
 grep -q "LongRun:" "${project}/AGENTS.md"
 grep -q "Confidence=" "${project}/AGENTS.md"
@@ -88,6 +92,16 @@ grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/bk-execution-handoff.md"
 grep -q "^- LongRun:" "${harness_dir}/bk-execution-handoff.md"
 grep -q "Confidence=" "${harness_dir}/bk-execution-handoff.md"
 grep -q "LongRunStop:" "${harness_dir}/bk-execution-handoff.md"
+python3 - <<PY
+import json
+from pathlib import Path
+profile = json.loads(Path(r"${harness_dir}/project-profile.json").read_text(encoding="utf-8"))
+if not isinstance(profile, dict):
+    raise SystemExit("project-profile.json must be object")
+launcher = profile.get("launcher", {})
+if not isinstance(launcher, dict) or "route" not in launcher or "command" not in launcher:
+    raise SystemExit("project-profile.json missing launcher route/command")
+PY
 
 echo "[test] detect quality gate should fail when draft"
 if python3 "${runtime_scripts_dir}/long-run-execution.py" validate-table "${project}" --table "${harness_dir}/bk-execution-table.json" >/dev/null 2>&1; then
@@ -112,6 +126,22 @@ PY
 
 echo "[test] validate harness"
 bash "${runtime_scripts_dir}/validate-long-run.sh" "$project"
+
+echo "[test] ralphloop endless prompt generation when no next row"
+export BAGAKIT_LONG_RUN_SKILL_DIR="${skill_root}"
+bash "${harness_dir}/ralphloop.sh" pulse --endless --json >"${tmp}/ralphloop.json"
+python3 - <<PY
+import json
+from pathlib import Path
+payload = json.loads(Path(r"${tmp}/ralphloop.json").read_text(encoding="utf-8"))
+status = str(payload.get("status", ""))
+if status not in {"endless_prompt_ready", "actionable"}:
+    raise SystemExit(f"unexpected ralphloop status: {payload}")
+if status == "endless_prompt_ready":
+    prompt = Path(str(payload.get("endless_prompt_file", "")))
+    if not prompt.exists():
+        raise SystemExit(f"missing endless prompt file: {payload}")
+PY
 
 echo "[test] execution adapters: seed bagakit-ft + openspec"
 mkdir -p "${ft_harness_dir}/index" "${ft_harness_dir}/feats-archived/f-20260215-sync-sample" "${project}/openspec/changes/add-health-check"

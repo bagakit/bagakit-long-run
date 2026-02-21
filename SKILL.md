@@ -9,7 +9,7 @@ description: Drive long-running delivery with an Agent-first detect stage and a 
 
 - This skill is standalone-first: it can run with only `long-run` runtime files and scripts.
 - Upstream systems are integrated through optional adapter contracts/signals in the execution table, never mandatory direct script calls.
-- The runtime loop is always driven by `.bagakit/long-run/check_and_resume.sh`.
+- Preferred runtime entry is `.bagakit/long-run/ralphloop.sh pulse --endless` (internally resumes via `check_and_resume.sh`).
 
 ## When to Use
 
@@ -84,7 +84,19 @@ Apply also injects/updates a managed AGENTS block (`<!-- BAGAKIT:LONGRUN:START -
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" validate-table .
 ```
 
-4) Check and resume (every round)
+4) Pulse entry (every round)
+
+```bash
+bash .bagakit/long-run/ralphloop.sh pulse --endless
+```
+
+Behavior:
+- always runs `bash .bagakit/long-run/check_and_resume.sh`
+- if next row exists: returns actionable item
+- if no next row and `--endless`: writes `.bagakit/long-run/endless_expand_prompt.md` for agent-driven plan expansion
+- expansion prompt is rendered with project-local context from `.bagakit/long-run/project-profile.json` (stack/launcher/quality commands)
+
+5) Check and resume (fallback/direct)
 
 ```bash
 bash .bagakit/long-run/check_and_resume.sh
@@ -94,18 +106,18 @@ Treat `bash .bagakit/long-run/check_and_resume.sh` as the resume command for eve
 This command also writes a structured next-action contract:
 - `.bagakit/long-run/next-action.json`
 
-5) Initializer pass
+6) Initializer pass
 - Use `.bagakit/long-run/initializer_prompt.md`
 - Produce high-quality `bk-execution-handoff.md`
 - End the response with `[[BAGAKIT]]` and include `- LongRun: ...`
 
-6) Coding pass
+7) Coding pass
 - Use `.bagakit/long-run/coding_prompt.md`
 - Execute one item only
 - Update `feature-list.json` and `bk-execution-handoff.md`
 - End the response with `[[BAGAKIT]]` and include `- LongRun: ...`
 
-7) Verify and iterate
+8) Verify and iterate
 
 ```bash
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .
@@ -114,7 +126,7 @@ bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-doctor.sh" .
 
 Then re-run `bash .bagakit/long-run/check_and_resume.sh` to actively pick the next actionable item.
 
-8) Heartbeat (optional, standalone)
+9) Heartbeat (optional, standalone)
 
 ```bash
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" tick . --json
@@ -170,6 +182,7 @@ For manual rows, required fields include:
 - `validate-long-run.sh`: validate harness + execution-table quality
 - `long-run-doctor.sh`: diagnose loop health and next actions
 - `long-run-execution.py`: validate-table/detect/plan/next-action/guide/sync-feature-list
+- `long-run-loop.py`: pulse entry (`pulse --endless`) and endless prompt generation
 - `long-run-features.py`: feature list validate/summary/pick/set-status
 - `long-run-heartbeat.py`: heartbeat tick/flash-ideas/schedule-add|list|remove|render
 - `scripts_dev/test.sh`: self-test
@@ -190,3 +203,4 @@ For manual rows, required fields include:
 ## Fallback Path
 
 - If detect output is not ready or has no actionable rows, stop coding execution, run `validate-table` + `doctor`, and record `[[BAGAKIT]]` with `LongRunStop` reason and retro.
+- If no actionable row remains and you want continuous flow, run `bash .bagakit/long-run/ralphloop.sh pulse --endless` and execute the generated `.bagakit/long-run/endless_expand_prompt.md` with your project agent.

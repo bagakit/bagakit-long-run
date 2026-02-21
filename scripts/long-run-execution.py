@@ -1183,6 +1183,7 @@ def cmd_next_action(args: argparse.Namespace) -> int:
             "status": next_row.get("status", ""),
             "system": next_row.get("system", ""),
             "source_ref": next_row.get("source_ref", ""),
+            "commands": to_str_list(next_row.get("commands")),
             "confidence": confidence,
             "evidence": evidence,
             "evidence_count": evidence_count,

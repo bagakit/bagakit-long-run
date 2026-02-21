@@ -44,10 +44,19 @@ def iso_to_dt(value: str) -> dt.datetime | None:
         return None
 
 
-def safe_tail(text: str, limit: int = 400) -> str:
-    if len(text) <= limit:
-        return text
-    return text[-limit:]
+def ensure_text(value: Any) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if value is None:
+        return ""
+    return str(value)
+
+
+def safe_tail(text: Any, limit: int = 400) -> str:
+    normalized = ensure_text(text)
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[-limit:]
 
 
 def slugify(value: str) -> str:
@@ -107,10 +116,12 @@ def default_config() -> Dict[str, Any]:
         },
         "guardrails": {
             "allowlist_prefixes": [
+                "bash .bagakit/long-run/ralphloop.sh",
                 "bash .bagakit/long-run/check_and_resume.sh",
                 "bash \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh\" .",
                 "bash \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-doctor.sh\" .",
                 "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py\"",
+                "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-loop.py\"",
                 "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-features.py\"",
                 "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py\"",
             ],

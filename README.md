@@ -52,6 +52,8 @@ Creates:
 - `.bagakit/long-run/detect_prompt.md`
 - `.bagakit/long-run/coding_prompt.md`
 - `.bagakit/long-run/initializer_prompt.md`
+- `.bagakit/long-run/ralphloop.sh`
+- `.bagakit/long-run/project-profile.json` (auto-detected project context)
 - `.bagakit/long-run/feature-list.json`
 - `.bagakit/long-run/bk-execution-handoff.md`
 - `.bagakit/long-run/bk-execution-table.json`
@@ -77,7 +79,19 @@ For unknown/custom upstream systems, use `kind=manual` rows.
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" validate-table .
 ```
 
-### 4. Check and resume
+### 4. Pulse entry (recommended)
+
+```bash
+bash .bagakit/long-run/ralphloop.sh pulse --endless
+```
+
+Behavior:
+- always runs `check_and_resume.sh`
+- if next row exists, returns actionable item for executor
+- if no next row and `--endless`, writes `.bagakit/long-run/endless_expand_prompt.md` for agent-driven plan expansion
+- expansion prompt includes detected stack/paths/quality commands from `project-profile.json`
+
+### 5. Check and resume (fallback/direct)
 
 ```bash
 bash .bagakit/long-run/check_and_resume.sh
@@ -92,7 +106,7 @@ This runs:
 
 Treat `bash .bagakit/long-run/check_and_resume.sh` as the resume command for every round.
 
-### 5. Initializer pass
+### 6. Initializer pass
 
 Run one initializer pass with:
 - `.bagakit/long-run/initializer_prompt.md`
@@ -101,7 +115,7 @@ Output must be a high-quality single-item handoff in:
 - `.bagakit/long-run/bk-execution-handoff.md`
 - end the response with `[[BAGAKIT]]`, adding `- LongRun: ...`
 
-### 6. Coding pass
+### 7. Coding pass
 
 Run one coding pass with:
 - `.bagakit/long-run/coding_prompt.md`
@@ -112,7 +126,7 @@ Constraints:
 - update status to `done` or `blocked`
 - end the response with `[[BAGAKIT]]`, adding `- LongRun: ...`
 
-### 7. Close the iteration
+### 8. Close the iteration
 
 ```bash
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .
@@ -176,6 +190,7 @@ python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" plan . --lim
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" next-action . --json
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" guide .
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" sync-feature-list .
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-loop.py" pulse . --endless --json
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" tick . --json
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" schedule-list .
 ```

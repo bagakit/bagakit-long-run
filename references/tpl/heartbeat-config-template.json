@@ -24,10 +24,12 @@
   },
   "guardrails": {
     "allowlist_prefixes": [
+      "bash .bagakit/long-run/ralphloop.sh",
       "bash .bagakit/long-run/check_and_resume.sh",
       "bash \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh\" .",
       "bash \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-doctor.sh\" .",
       "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py\"",
+      "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-loop.py\"",
       "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-features.py\"",
       "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py\""
     ],

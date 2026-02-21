@@ -2,7 +2,7 @@
 title: Long Run Resume & Stop Contract (恢复循环与停止说明)
 required: false
 sop:
-  - Treat `bash .bagakit/long-run/check_and_resume.sh` as the **resume command** (next-action SSOT); run it at the start of a session and after every detect/initializer/coding pass.
+  - Preferred loop entry is `bash .bagakit/long-run/ralphloop.sh pulse --endless`; fallback resume command is `bash .bagakit/long-run/check_and_resume.sh`.
   - After finishing the current item (done/blocked), run resume and continue by following its output (do not guess the next action).
   - If you stop the loop at the end of a session, explain **why you are not continuing** in the `[[BAGAKIT]]` footer. If not fully done, include a short retrospective and the unblock/next step.
   - When this contract changes, update `references/tpl/*template*` + `scripts/validate-long-run.sh`, then regenerate `docs/must-sop.md`.
@@ -12,7 +12,17 @@ sop:
 
 This doc defines the long-run loop behavior that should be injected into target projects via the managed AGENTS block and prompt templates.
 
-## 1) Resume Script (Next Action SSOT)
+## 1) Pulse Entry + Resume Script (Next Action SSOT)
+
+Preferred command:
+
+```bash
+bash .bagakit/long-run/ralphloop.sh pulse --endless
+```
+
+This command always runs resume and, when no actionable row exists, auto-generates `.bagakit/long-run/endless_expand_prompt.md` for agent-driven plan expansion.
+
+Fallback direct resume script:
 
 The long-run **resume script** is:
 
