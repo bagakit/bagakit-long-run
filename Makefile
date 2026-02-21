@@ -14,6 +14,7 @@ install-skill:
 	find "$(SKILL_DIR)/scripts" -type f -name "*.sh" -exec chmod +x {} +
 	chmod +x "$(SKILL_DIR)/scripts/long-run-features.py"
 	chmod +x "$(SKILL_DIR)/scripts/long-run-execution.py"
+	chmod +x "$(SKILL_DIR)/scripts/long-run-heartbeat.py"
 	@echo "installed: $(SKILL_DIR)"
 
 package-skill: clean

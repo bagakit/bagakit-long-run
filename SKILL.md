@@ -114,6 +114,27 @@ bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-doctor.sh" .
 
 Then re-run `bash .bagakit/long-run/check_and_resume.sh` to actively pick the next actionable item.
 
+8) Heartbeat (optional, standalone)
+
+```bash
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" tick . --json
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" flash-ideas . --count 5 --json
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" schedule-list .
+```
+
+Default behavior:
+- heartbeat enabled, every 30 minutes, active window `08:00-22:00` (all days)
+- autonomy mode `full_auto_execute`, run context `main`
+- guardrails: allowlist + timeout + command budget + git clean check
+- delivery route: `announce` with always-on file history
+- inbox route: prefer `docs/.bagakit/inbox/` mirror when present, fallback to `.bagakit/long-run/inbox/`
+- idle fallback: generate 3~5 flash ideas and auto-pick top-1
+
+External scheduling remains optional:
+- `schedule-add` only writes local contracts (`heartbeat-schedules.json`)
+- `schedule-render` generates runnable artifacts for external schedulers (`at`/`every`/`cron`)
+- no daemon and no external online dependency required
+
 ## Execution-table Contract
 
 Execution table file:
@@ -150,6 +171,7 @@ For manual rows, required fields include:
 - `long-run-doctor.sh`: diagnose loop health and next actions
 - `long-run-execution.py`: validate-table/detect/plan/next-action/guide/sync-feature-list
 - `long-run-features.py`: feature list validate/summary/pick/set-status
+- `long-run-heartbeat.py`: heartbeat tick/flash-ideas/schedule-add|list|remove|render
 - `scripts_dev/test.sh`: self-test
 
 ## Output Routes and Default Mode

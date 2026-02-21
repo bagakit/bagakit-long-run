@@ -21,10 +21,18 @@ detect_prompt="${harness_dir}/detect_prompt.md"
 initializer_prompt="${harness_dir}/initializer_prompt.md"
 coding_prompt="${harness_dir}/coding_prompt.md"
 resume_script="${harness_dir}/check_and_resume.sh"
+heartbeat_config_file="${harness_dir}/heartbeat.config.json"
+heartbeat_schedules_file="${harness_dir}/heartbeat-schedules.json"
+heartbeat_state_file="${harness_dir}/heartbeat.state.json"
+heartbeat_queue_file="${harness_dir}/inbox/queue.json"
+heartbeat_inbox_history_dir="${harness_dir}/inbox/history"
+heartbeat_inbox_flash_dir="${harness_dir}/inbox/flash-ideas"
+heartbeat_inbox_readme="${harness_dir}/inbox/README.md"
 legacy_init_script="${harness_dir}/init.sh"
 legacy_initial_prompt="${harness_dir}/initial_prompt.md"
 feature_tool="${script_dir}/long-run-features.py"
 execution_tool="${script_dir}/long-run-execution.py"
+heartbeat_tool="${script_dir}/long-run-heartbeat.py"
 
 errors=0
 warnings=0
@@ -66,6 +74,99 @@ for legacy in "$legacy_init_script" "$legacy_initial_prompt"; do
     fail "legacy harness artifact must be removed: ${legacy} (run apply-long-run.sh again)"
   fi
 done
+
+heartbeat_present=0
+for heartbeat_path in "$heartbeat_config_file" "$heartbeat_schedules_file" "$heartbeat_state_file" "$heartbeat_queue_file"; do
+  if [[ -e "$heartbeat_path" ]]; then
+    heartbeat_present=$((heartbeat_present + 1))
+  fi
+done
+
+if [[ "$heartbeat_present" -eq 0 ]]; then
+  warn "heartbeat artifacts not found (migration hint: run apply-long-run.sh to scaffold heartbeat v1 files)"
+elif [[ "$heartbeat_present" -lt 4 ]]; then
+  fail "heartbeat artifacts are partially present; re-run apply-long-run.sh to repair"
+else
+  if [[ ! -f "$heartbeat_tool" ]]; then
+    fail "missing heartbeat tool: ${heartbeat_tool}"
+  else
+    if ! python3 "$heartbeat_tool" validate-config "$project_root" >/dev/null; then
+      fail "heartbeat config validation failed: ${heartbeat_config_file}"
+    fi
+    if ! python3 "$heartbeat_tool" validate-schedules "$project_root" >/dev/null; then
+      fail "heartbeat schedules validation failed: ${heartbeat_schedules_file}"
+    fi
+  fi
+
+  if [[ ! -d "$heartbeat_inbox_history_dir" ]]; then
+    fail "missing heartbeat inbox history dir: ${heartbeat_inbox_history_dir}"
+  fi
+  if [[ ! -d "$heartbeat_inbox_flash_dir" ]]; then
+    fail "missing heartbeat inbox flash-ideas dir: ${heartbeat_inbox_flash_dir}"
+  fi
+  if [[ ! -f "$heartbeat_inbox_readme" ]]; then
+    warn "missing heartbeat inbox README: ${heartbeat_inbox_readme}"
+  fi
+
+  heartbeat_contract_errors="$(python3 - "$heartbeat_config_file" "$heartbeat_state_file" "$heartbeat_queue_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+cfg_path, state_path, queue_path = [Path(p) for p in sys.argv[1:4]]
+errors = []
+
+try:
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    cfg = {}
+    errors.append(f"heartbeat.config.json parse failed: {exc}")
+
+guard = cfg.get("guardrails", {}) if isinstance(cfg, dict) else {}
+allowlist = guard.get("allowlist_prefixes")
+if not isinstance(allowlist, list) or not [s for s in allowlist if isinstance(s, str) and s.strip()]:
+    errors.append("heartbeat guardrails.allowlist_prefixes must include at least one prefix")
+
+timeout = guard.get("command_timeout_seconds")
+if not isinstance(timeout, int) or timeout < 1 or timeout > 7200:
+    errors.append("heartbeat guardrails.command_timeout_seconds must be int within [1, 7200]")
+
+budget = guard.get("max_commands_per_tick")
+if not isinstance(budget, int) or budget < 1 or budget > 32:
+    errors.append("heartbeat guardrails.max_commands_per_tick must be int within [1, 32]")
+
+try:
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    state = {}
+    errors.append(f"heartbeat.state.json parse failed: {exc}")
+cooldown = state.get("cooldown_minutes")
+if not isinstance(cooldown, int) or cooldown < 1 or cooldown > 10080:
+    errors.append("heartbeat.state.json cooldown_minutes must be int within [1, 10080]")
+recent = state.get("recent_executions")
+if not isinstance(recent, list):
+    errors.append("heartbeat.state.json recent_executions must be list")
+
+try:
+    queue = json.loads(queue_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    queue = {}
+    errors.append(f"inbox queue parse failed: {exc}")
+items = queue.get("items")
+if not isinstance(items, list):
+    errors.append("inbox queue items must be list")
+
+for err in errors:
+    print(err)
+PY
+)" || true
+  if [[ -n "${heartbeat_contract_errors}" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      fail "$line"
+    done <<<"$heartbeat_contract_errors"
+  fi
+fi
 
 if [[ -f "$feature_file" ]]; then
   if [[ ! -f "$feature_tool" ]]; then

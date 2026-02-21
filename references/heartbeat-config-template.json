@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "enabled": true,
+  "interval_minutes": 30,
+  "active_windows": [
+    {
+      "days": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu",
+        "Fri",
+        "Sat",
+        "Sun"
+      ],
+      "start": "08:00",
+      "end": "22:00"
+    }
+  ],
+  "timezone": "local",
+  "autonomy": {
+    "mode": "full_auto_execute",
+    "run_context": "main"
+  },
+  "guardrails": {
+    "allowlist_prefixes": [
+      "bash .bagakit/long-run/check_and_resume.sh",
+      "bash \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh\" .",
+      "bash \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-doctor.sh\" .",
+      "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py\"",
+      "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-features.py\"",
+      "python3 \"$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py\""
+    ],
+    "command_timeout_seconds": 900,
+    "max_commands_per_tick": 4,
+    "require_git_clean": true
+  },
+  "delivery": {
+    "mode": "announce",
+    "webhook_url": ""
+  },
+  "inbox": {
+    "prefer_living_docs": true
+  },
+  "idle": {
+    "flash_ideas": {
+      "enabled": true,
+      "count": 5,
+      "auto_pick": "top_1"
+    }
+  }
+}

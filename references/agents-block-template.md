@@ -22,6 +22,18 @@ Response Driver (every long-run pass):
 - If ending current session without continuing the loop, add a peer stop line:
   - `- LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why not fully complete + unblock/next step>`
 
+Heartbeat Operations (standalone-first):
+- Manual tick (one run): `python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" tick . --json`
+- Flash ideas preview: `python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" flash-ideas . --count 5 --json`
+- Enable/disable heartbeat via `.bagakit/long-run/heartbeat.config.json` field `enabled`.
+- Validate heartbeat contracts:
+  - `python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" validate-config .`
+  - `python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" validate-schedules .`
+- Local schedule management:
+  - `schedule-add`: add `at|every|cron` records into `.bagakit/long-run/heartbeat-schedules.json`
+  - `schedule-render`: generate external-scheduler runnable artifacts (one-shot script / loop script / cron line)
+- External scheduler mounting is optional and out-of-process; no built-in daemon is required.
+
 Detect Rules:
 - Detect is agent-driven and rule-based; do not hardcode project-specific names in scripts.
 - Map upstream systems to adapters (`bagakit-ft`, `openspec`, `manual`) in `.bagakit/long-run/bk-execution-table.json`.

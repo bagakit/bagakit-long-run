@@ -56,6 +56,10 @@ Creates:
 - `.bagakit/long-run/bk-execution-handoff.md`
 - `.bagakit/long-run/bk-execution-table.json`
 - `.bagakit/long-run/check_and_resume.sh`
+- `.bagakit/long-run/heartbeat.config.json`
+- `.bagakit/long-run/heartbeat-schedules.json`
+- `.bagakit/long-run/heartbeat.state.json`
+- `.bagakit/long-run/inbox/queue.json`
 - `AGENTS.md` (`BAGAKIT:LONGRUN` managed block)
 
 ### 2. Run detect pass (Agent)
@@ -117,6 +121,40 @@ bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-doctor.sh" .
 
 Then re-run `bash .bagakit/long-run/check_and_resume.sh` and continue the next single-item round.
 
+## Heartbeat + Flash + Inbox (Standalone v1)
+
+Run one heartbeat tick:
+
+```bash
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" tick . --json
+```
+
+Preview flash ideas:
+
+```bash
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" flash-ideas . --count 5 --json
+```
+
+Manage local schedules:
+
+```bash
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" schedule-add . --kind every --name "half-hour-loop" --spec 30m
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" schedule-list .
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" schedule-render . --id <schedule_id>
+```
+
+Defaults:
+- heartbeat enabled, 30-minute interval, active window `08:00-22:00`
+- run context `main`, autonomy mode `full_auto_execute`
+- guardrails: allowlist + timeout + command budget + git safety
+- no inbox actionable item -> generate 3~5 flash ideas and auto-execute top-1
+- delivery is announce + file history; webhook optional
+
+Standalone policy:
+- no built-in daemon, no required external service
+- `schedule-render` only generates external-scheduler runnable artifacts (`at`, loop script, cron line)
+- if `docs/.bagakit/inbox/` exists, heartbeat mirrors notes there; otherwise local inbox paths remain the source of truth
+
 ## Upstream Integration Modes
 
 Built-in adapter kinds:
@@ -138,6 +176,8 @@ python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" plan . --lim
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" next-action . --json
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" guide .
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" sync-feature-list .
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" tick . --json
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" schedule-list .
 ```
 
 ## Local verification
