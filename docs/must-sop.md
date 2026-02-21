@@ -16,7 +16,7 @@ Source: `docs/guidelines-long-run-resume.md`
 - Treat `bash .bagakit/long-run/check_and_resume.sh` as the **resume command** (next-action SSOT); run it at the start of a session and after every detect/initializer/coding pass.
 - After finishing the current item (done/blocked), run resume and continue by following its output (do not guess the next action).
 - If you stop the loop at the end of a session, explain **why you are not continuing** in the `[[BAGAKIT]]` footer. If not fully done, include a short retrospective and the unblock/next step.
-- When this contract changes, update `references/*template*` + `scripts/validate-long-run.sh`, then regenerate `docs/must-sop.md`.
+- When this contract changes, update `references/tpl/*template*` + `scripts/validate-long-run.sh`, then regenerate `docs/must-sop.md`.
 
 ### Maintaining Reusable Items (可复用项维护)
 Source: `docs/norms-maintaining-reusable-items.md`
@@ -29,4 +29,3 @@ Source: `docs/notes-continuous-learning.md`
 - At the end of a Bagakit Agent work session, capture a draft learning note into `docs/.bagakit/inbox/` (manual or via `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_learning.sh" extract --root . --last`). The default extractor upserts into a daily file to avoid fragmentation.
 - Weekly (or before major releases), review `docs/.bagakit/inbox/` and promote durable items into `docs/.bagakit/memory/`.
 - When promoting, keep entries short and source-linked; prefer `decision-*`/`preference-*`/`gotcha-*`/`howto-*` over long narratives. If the curated target already exists, merge instead of creating duplicates.
-

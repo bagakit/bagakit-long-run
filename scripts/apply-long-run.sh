@@ -29,13 +29,14 @@ done
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 skill_root="$(cd "${script_dir}/.." && pwd)"
 refs_dir="${skill_root}/references"
+tpl_dir="${refs_dir}/tpl"
 harness_dir="${project_root}/.bagakit/long-run"
 inbox_dir="${harness_dir}/inbox"
 agents_file="${project_root}/AGENTS.md"
-block_file="${refs_dir}/agents-block-template.md"
-heartbeat_config_template="${refs_dir}/heartbeat-config-template.json"
-heartbeat_schedules_template="${refs_dir}/heartbeat-schedules-template.json"
-heartbeat_inbox_readme_template="${refs_dir}/heartbeat-inbox-readme-template.md"
+block_file="${tpl_dir}/agents-block-template.md"
+heartbeat_config_template="${tpl_dir}/heartbeat-config-template.json"
+heartbeat_schedules_template="${tpl_dir}/heartbeat-schedules-template.json"
+heartbeat_inbox_readme_template="${tpl_dir}/heartbeat-inbox-readme-template.md"
 start_tag="<!-- BAGAKIT:LONGRUN:START -->"
 end_tag="<!-- BAGAKIT:LONGRUN:END -->"
 mkdir -p "${project_root}/.bagakit"
@@ -89,6 +90,10 @@ if [[ ! -d "$refs_dir" ]]; then
   echo "missing references dir: ${refs_dir}" >&2
   exit 1
 fi
+if [[ ! -d "$tpl_dir" ]]; then
+  echo "missing templates dir: ${tpl_dir}" >&2
+  exit 1
+fi
 if [[ ! -f "$block_file" ]]; then
   echo "missing agents block template: ${block_file}" >&2
   exit 1
@@ -103,13 +108,13 @@ done
 mkdir -p "$harness_dir"
 mkdir -p "${inbox_dir}/history" "${inbox_dir}/flash-ideas" "${harness_dir}/schedules/generated"
 
-copy_managed_template "${refs_dir}/detect-prompt-template.md" "${harness_dir}/detect_prompt.md"
-copy_managed_template "${refs_dir}/initializer-prompt-template.md" "${harness_dir}/initializer_prompt.md"
-copy_managed_template "${refs_dir}/coding-prompt-template.md" "${harness_dir}/coding_prompt.md"
-copy_template "${refs_dir}/feature-list-template.json" "${harness_dir}/feature-list.json"
-copy_template "${refs_dir}/bk-execution-handoff-template.md" "${harness_dir}/bk-execution-handoff.md"
-copy_template "${refs_dir}/bk-execution-table-template.json" "${harness_dir}/bk-execution-table.json"
-copy_managed_template "${refs_dir}/check-and-resume-sh-template.md" "${harness_dir}/check_and_resume.sh"
+copy_managed_template "${tpl_dir}/detect-prompt-template.md" "${harness_dir}/detect_prompt.md"
+copy_managed_template "${tpl_dir}/initializer-prompt-template.md" "${harness_dir}/initializer_prompt.md"
+copy_managed_template "${tpl_dir}/coding-prompt-template.md" "${harness_dir}/coding_prompt.md"
+copy_template "${tpl_dir}/feature-list-template.json" "${harness_dir}/feature-list.json"
+copy_template "${tpl_dir}/bk-execution-handoff-template.md" "${harness_dir}/bk-execution-handoff.md"
+copy_template "${tpl_dir}/bk-execution-table-template.json" "${harness_dir}/bk-execution-table.json"
+copy_managed_template "${tpl_dir}/check-and-resume-sh-template.md" "${harness_dir}/check_and_resume.sh"
 copy_template "$heartbeat_config_template" "${harness_dir}/heartbeat.config.json"
 copy_template "$heartbeat_schedules_template" "${harness_dir}/heartbeat-schedules.json"
 copy_template "$heartbeat_inbox_readme_template" "${inbox_dir}/README.md"

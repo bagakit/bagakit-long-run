@@ -185,10 +185,10 @@ def ensure_files(project_root: Path, skill_root: Path) -> Dict[str, Path]:
     paths["flash_dir"].mkdir(parents=True, exist_ok=True)
     paths["schedules_generated"].mkdir(parents=True, exist_ok=True)
 
-    refs = skill_root / "references"
-    config_template = refs / "heartbeat-config-template.json"
-    schedules_template = refs / "heartbeat-schedules-template.json"
-    inbox_template = refs / "heartbeat-inbox-readme-template.md"
+    tpl = skill_root / "references" / "tpl"
+    config_template = tpl / "heartbeat-config-template.json"
+    schedules_template = tpl / "heartbeat-schedules-template.json"
+    inbox_template = tpl / "heartbeat-inbox-readme-template.md"
 
     if config_template.exists() and not paths["config"].exists():
         paths["config"].write_text(config_template.read_text(encoding="utf-8"), encoding="utf-8")

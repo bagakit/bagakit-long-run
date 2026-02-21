@@ -34,7 +34,7 @@ for phrase in ("bash .bagakit/long-run/check_and_resume.sh", "LongRunStop:"):
     if phrase not in resume_doc:
         raise SystemExit(f"missing resume/stop contract phrase in docs/guidelines-long-run-resume.md: {phrase}")
 
-table = json.loads((root / "references" / "bk-execution-table-template.json").read_text(encoding="utf-8"))
+table = json.loads((root / "references" / "tpl" / "bk-execution-table-template.json").read_text(encoding="utf-8"))
 selection = table.get("selection", {})
 if selection.get("strategy") != "status_confidence_evidence_priority":
     raise SystemExit("unexpected selection.strategy in execution table template")
@@ -44,7 +44,7 @@ for kind in ("bagakit-ft", "openspec", "manual"):
     if kind not in kinds:
         raise SystemExit(f"missing built-in adapter kind in template: {kind}")
 
-detect_prompt = (root / "references" / "detect-prompt-template.md").read_text(encoding="utf-8")
+detect_prompt = (root / "references" / "tpl" / "detect-prompt-template.md").read_text(encoding="utf-8")
 for phrase in ("confidence", "evidence"):
     if phrase not in detect_prompt:
         raise SystemExit(f"missing phrase in detect prompt template: {phrase}")

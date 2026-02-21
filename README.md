@@ -28,7 +28,7 @@ Reference:
 ## What this repo contains
 
 - `SKILL.md`: skill entrypoint
-- `references/`: runtime templates
+- `references/tpl/`: runtime templates
 - `scripts/`: apply/validate/doctor/execution helpers
 
 ## Install skill locally

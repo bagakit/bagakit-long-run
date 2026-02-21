@@ -5,7 +5,7 @@ sop:
   - Treat `bash .bagakit/long-run/check_and_resume.sh` as the **resume command** (next-action SSOT); run it at the start of a session and after every detect/initializer/coding pass.
   - After finishing the current item (done/blocked), run resume and continue by following its output (do not guess the next action).
   - If you stop the loop at the end of a session, explain **why you are not continuing** in the `[[BAGAKIT]]` footer. If not fully done, include a short retrospective and the unblock/next step.
-  - When this contract changes, update `references/*template*` + `scripts/validate-long-run.sh`, then regenerate `docs/must-sop.md`.
+  - When this contract changes, update `references/tpl/*template*` + `scripts/validate-long-run.sh`, then regenerate `docs/must-sop.md`.
 ---
 
 # Long Run Resume & Stop Contract
