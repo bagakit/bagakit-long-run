@@ -10,6 +10,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage:
   bash .bagakit/long-run/ralphloop.sh pulse [--endless] [--json]
+  bash .bagakit/long-run/ralphloop.sh run [--endless] [--json]
   bash .bagakit/long-run/ralphloop.sh plan [--json]
 EOF
   exit 1
@@ -29,7 +30,7 @@ command="$1"
 shift || true
 
 case "$command" in
-  pulse|plan)
+  pulse|run|plan)
     python3 "$loop_tool" "$command" "$project_root" "$@"
     ;;
   *)

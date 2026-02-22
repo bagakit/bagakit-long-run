@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
@@ -88,19 +89,23 @@ def read_project_profile(profile_file: Path) -> Dict[str, Any]:
 def render_profile_section(profile: Dict[str, Any], cli_hint: str) -> str:
     stack = profile.get("stack", {}) if isinstance(profile.get("stack"), dict) else {}
     launcher = profile.get("launcher", {}) if isinstance(profile.get("launcher"), dict) else {}
+    agent = profile.get("agent", {}) if isinstance(profile.get("agent"), dict) else {}
     analysis_paths = to_str_list(profile.get("analysis_paths"))
     quality_commands = to_str_list(profile.get("quality_commands"))
 
     primary_stack = str(stack.get("primary", "unknown")).strip() or "unknown"
     route = str(launcher.get("route", "")).strip() or "(not-detected)"
-    launch_cmd = str(launcher.get("command", "")).strip() or "bash .bagakit/long-run/ralphloop.sh pulse --endless"
+    launch_cmd = str(launcher.get("command", "")).strip() or "bash .bagakit/long-run/ralphloop-runner.sh"
+    agent_hint = str(agent.get("hint", "")).strip() or cli_hint
+    agent_command = str(agent.get("command", "")).strip() or "(set BAGAKIT_AGENT_CMD)"
 
     lines = [
         "项目检测上下文（由 apply-long-run 生成）:",
         f"- primary_stack: {primary_stack}",
         f"- launcher_route: {route}",
         f"- launcher_command: {launch_cmd}",
-        f"- agent_cli_hint: {cli_hint}",
+        f"- agent_cli_hint: {agent_hint}",
+        f"- agent_command: {agent_command}",
     ]
 
     if analysis_paths:
@@ -155,16 +160,24 @@ def emit(payload: Dict[str, Any], as_json: bool) -> int:
         print(f"reason: {payload.get('reason')}")
     if payload.get("detected_cli"):
         print(f"detected_cli: {payload.get('detected_cli')}")
+    if payload.get("pulse_status"):
+        print(f"pulse_status: {payload.get('pulse_status')}")
     if payload.get("next_row_id"):
         print(f"next_row: {payload.get('next_row_id')} {payload.get('next_row_title', '')}".strip())
         print("use_prompt: .bagakit/long-run/coding_prompt.md")
     if payload.get("endless_prompt_file"):
         print(f"endless_prompt_file: {payload.get('endless_prompt_file')}")
+    prompts = payload.get("executed_prompts")
+    if isinstance(prompts, list) and prompts:
+        print("executed_prompts:")
+        for item in prompts:
+            print(f"- {item}")
+    if payload.get("agent_command"):
+        print(f"agent_command: {payload.get('agent_command')}")
     return int(payload.get("exit_code", 0))
 
 
-def cmd_pulse(args: argparse.Namespace) -> int:
-    project_root = Path(args.project_root).resolve()
+def build_pulse_payload(project_root: Path, endless: bool) -> Dict[str, Any]:
     harness_dir = project_root / ".bagakit" / "long-run"
     next_action_file = harness_dir / "next-action.json"
     feature_file = harness_dir / "feature-list.json"
@@ -191,7 +204,7 @@ def cmd_pulse(args: argparse.Namespace) -> int:
                 "exit_code": 1,
             }
         )
-        return emit(payload, args.json)
+        return payload
 
     if not next_action_file.exists():
         payload.update(
@@ -201,7 +214,7 @@ def cmd_pulse(args: argparse.Namespace) -> int:
                 "exit_code": 1,
             }
         )
-        return emit(payload, args.json)
+        return payload
 
     next_action = read_json(next_action_file)
     next_row = next_action.get("next_row")
@@ -214,9 +227,9 @@ def cmd_pulse(args: argparse.Namespace) -> int:
                 "next_row_title": str(next_row.get("title", "")).strip(),
             }
         )
-        return emit(payload, args.json)
+        return payload
 
-    if args.endless:
+    if endless:
         project_name, project_goal = read_project_context(feature_file)
         project_profile = read_project_profile(profile_file)
         prompt_text = render_endless_prompt(project_name, project_goal, project_profile, cli_hint)
@@ -229,7 +242,7 @@ def cmd_pulse(args: argparse.Namespace) -> int:
                 "endless_prompt_file": str(prompt_file),
             }
         )
-        return emit(payload, args.json)
+        return payload
 
     payload.update(
         {
@@ -237,7 +250,165 @@ def cmd_pulse(args: argparse.Namespace) -> int:
             "reason": "no_actionable_row",
         }
     )
+    return payload
+
+
+def cmd_pulse(args: argparse.Namespace) -> int:
+    project_root = Path(args.project_root).resolve()
+    payload = build_pulse_payload(project_root, args.endless)
     return emit(payload, args.json)
+
+
+def prompt_files_for_pulse(payload: Dict[str, Any], harness_dir: Path) -> List[Path]:
+    status = str(payload.get("status", "")).strip()
+    if status == "actionable":
+        return [
+            harness_dir / "initializer_prompt.md",
+            harness_dir / "coding_prompt.md",
+        ]
+    if status == "endless_prompt_ready":
+        prompt_file = str(payload.get("endless_prompt_file", "")).strip()
+        if prompt_file:
+            return [Path(prompt_file).resolve()]
+    return []
+
+
+def resolve_agent_command(profile: Dict[str, Any]) -> str:
+    for key in ("BAGAKIT_AGENT_CMD", "BAGAKIT_AGENT_CLI"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            return value
+
+    agent = profile.get("agent")
+    if isinstance(agent, dict):
+        value = str(agent.get("command", "")).strip()
+        if value:
+            return value
+    return ""
+
+
+def render_agent_command(command_template: str, prompt_file: Path, project_root: Path) -> str:
+    prompt_file_q = shlex.quote(str(prompt_file))
+    project_root_q = shlex.quote(str(project_root))
+    has_placeholder = ("{prompt_file}" in command_template) or ("{project_root}" in command_template)
+
+    rendered = command_template.replace("{prompt_file}", prompt_file_q).replace("{project_root}", project_root_q)
+
+    if "{prompt_text}" in rendered:
+        prompt_text = prompt_file.read_text(encoding="utf-8")
+        rendered = rendered.replace("{prompt_text}", shlex.quote(prompt_text))
+        has_placeholder = True
+
+    if not has_placeholder:
+        rendered = f"{rendered} {prompt_file_q}"
+    return rendered
+
+
+def run_agent_prompt(project_root: Path, command_template: str, prompt_file: Path, verbose: bool = False) -> int:
+    command = render_agent_command(command_template, prompt_file, project_root)
+    if verbose:
+        print(f"agent_command: {command}")
+    proc = subprocess.run(
+        ["bash", "-lc", command],
+        cwd=project_root,
+        text=True,
+    )
+    return int(proc.returncode)
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    project_root = Path(args.project_root).resolve()
+    harness_dir = project_root / ".bagakit" / "long-run"
+    profile_file = harness_dir / "project-profile.json"
+
+    payload = build_pulse_payload(project_root, args.endless)
+    pulse_status = str(payload.get("status", "")).strip()
+
+    result: Dict[str, Any] = {
+        "status": "run_unknown",
+        "reason": "",
+        "pulse_status": pulse_status,
+        "detected_cli": payload.get("detected_cli", ""),
+        "executed_prompts": [],
+        "agent_command": "",
+        "exit_code": 0,
+    }
+
+    if pulse_status == "failed":
+        result.update(
+            {
+                "status": "run_failed",
+                "reason": str(payload.get("reason", "pulse_failed")),
+                "resume_stderr_tail": payload.get("resume_stderr_tail", ""),
+                "exit_code": 1,
+            }
+        )
+        return emit(result, args.json)
+
+    prompt_files = prompt_files_for_pulse(payload, harness_dir)
+    if not prompt_files:
+        result.update(
+            {
+                "status": "run_no_action",
+                "reason": str(payload.get("reason", "no_actionable_row")),
+            }
+        )
+        return emit(result, args.json)
+
+    project_profile = read_project_profile(profile_file)
+    agent_command = resolve_agent_command(project_profile)
+    result["agent_command"] = agent_command
+    if not agent_command:
+        result.update(
+            {
+                "status": "agent_command_missing",
+                "reason": "set BAGAKIT_AGENT_CMD (or BAGAKIT_AGENT_CLI) to run prompts automatically",
+                "exit_code": 2,
+            }
+        )
+        return emit(result, args.json)
+
+    for prompt_file in prompt_files:
+        if not prompt_file.exists():
+            result.update(
+                {
+                    "status": "run_failed",
+                    "reason": f"missing_prompt:{prompt_file}",
+                    "exit_code": 1,
+                }
+            )
+            return emit(result, args.json)
+
+    if args.dry_run:
+        result.update(
+            {
+                "status": "run_dry",
+                "reason": "dry_run",
+                "executed_prompts": [str(path) for path in prompt_files],
+            }
+        )
+        return emit(result, args.json)
+
+    for prompt_file in prompt_files:
+        rc = run_agent_prompt(project_root, agent_command, prompt_file, verbose=args.verbose)
+        result["executed_prompts"].append(str(prompt_file))
+        if rc != 0:
+            result.update(
+                {
+                    "status": "run_failed",
+                    "reason": f"agent_command_failed:{prompt_file}",
+                    "exit_code": rc,
+                }
+            )
+            return emit(result, args.json)
+
+    result.update(
+        {
+            "status": "run_completed",
+            "reason": "agent_prompts_executed",
+        }
+    )
+    return emit(result, args.json)
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
@@ -274,6 +445,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_pulse.add_argument("--endless", action="store_true")
     p_pulse.add_argument("--json", action="store_true")
     p_pulse.set_defaults(func=cmd_pulse)
+
+    p_run = sub.add_parser("run", help="run one pulse and dispatch resulting prompts to local agent")
+    p_run.add_argument("project_root")
+    p_run.add_argument("--endless", action="store_true")
+    p_run.add_argument("--json", action="store_true")
+    p_run.add_argument("--dry-run", action="store_true")
+    p_run.add_argument("--verbose", action="store_true")
+    p_run.set_defaults(func=cmd_run)
 
     p_plan = sub.add_parser("plan", help="print normalized execution rows")
     p_plan.add_argument("project_root")

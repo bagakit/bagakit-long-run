@@ -7,14 +7,25 @@ Role:
 
 Tooling:
 - Resolve the installed skill dir as: `export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-long-run}"`
+- Configure coding CLI dispatch command:
+  - preferred: `export BAGAKIT_AGENT_CMD='<your-agent-command-with-{prompt_file}>'`
+  - fallback: `export BAGAKIT_AGENT_CLI='<your-agent-cli>'`
 
 Loop Protocol (every round):
-1. Preferred entry: `bash .bagakit/long-run/ralphloop.sh pulse --endless` (this runs resume and handles no-next-step expansion prompt generation).
-2. Fallback resume command: `bash .bagakit/long-run/check_and_resume.sh`.
-3. If detect is not ready, run `.bagakit/long-run/detect_prompt.md`, update `.bagakit/long-run/bk-execution-table.json`, then re-run resume.
-4. Run initializer pass with `.bagakit/long-run/initializer_prompt.md` and produce a single-item handoff.
-5. Run coding pass with `.bagakit/long-run/coding_prompt.md`, execute exactly one item, and update status/check evidence.
-6. After each pass, re-run `bash .bagakit/long-run/check_and_resume.sh` to actively pick the next actionable item and continue.
+1. Preferred entry: `bash .bagakit/long-run/ralphloop-runner.sh` (continuous loop; requires `BAGAKIT_AGENT_CMD`/`BAGAKIT_AGENT_CLI`).
+2. Single-step fallback: `bash .bagakit/long-run/ralphloop.sh pulse --endless`.
+3. Fallback resume command: `bash .bagakit/long-run/check_and_resume.sh`.
+4. If detect is not ready, run `.bagakit/long-run/detect_prompt.md`, update `.bagakit/long-run/bk-execution-table.json`, then re-run resume.
+5. Run initializer pass with `.bagakit/long-run/initializer_prompt.md` and produce a single-item handoff.
+6. Run coding pass with `.bagakit/long-run/coding_prompt.md`, execute exactly one item, and update status/check evidence.
+7. After each pass, re-run `bash .bagakit/long-run/check_and_resume.sh` to actively pick the next actionable item and continue.
+
+Orchestrator Setup Steps (must be explicit):
+1. select launcher route (`package.json` / `Makefile` / shell).
+2. select coding CLI command (`BAGAKIT_AGENT_CMD` preferred).
+3. verify single-step dispatch: `bash .bagakit/long-run/ralphloop.sh run --endless --dry-run --json`.
+4. run continuous orchestrator: `bash .bagakit/long-run/ralphloop-runner.sh`.
+5. if loop fails, stop and inspect `resume_stderr_tail` before next retry.
 
 Response Driver (every long-run pass):
 - End detect/initializer/coding responses with the project footer block `[[BAGAKIT]]`.

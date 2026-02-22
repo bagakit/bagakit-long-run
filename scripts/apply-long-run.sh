@@ -38,6 +38,7 @@ heartbeat_config_template="${tpl_dir}/heartbeat-config-template.json"
 heartbeat_schedules_template="${tpl_dir}/heartbeat-schedules-template.json"
 heartbeat_inbox_readme_template="${tpl_dir}/heartbeat-inbox-readme-template.md"
 ralphloop_template="${tpl_dir}/ralphloop-sh-template.md"
+ralphloop_runner_template="${tpl_dir}/ralphloop-runner-sh-template.md"
 start_tag="<!-- BAGAKIT:LONGRUN:START -->"
 end_tag="<!-- BAGAKIT:LONGRUN:END -->"
 launcher_start="# BAGAKIT:LONGRUN:LAUNCHER:START"
@@ -117,7 +118,7 @@ scripts = data.get("scripts")
 if not isinstance(scripts, dict):
     scripts = {}
 
-  command = "bash .bagakit/long-run/ralphloop.sh pulse --endless"
+command = "bash .bagakit/long-run/ralphloop-runner.sh"
 if scripts.get("ralphloop") == command:
     print("skip")
     raise SystemExit(0)
@@ -155,7 +156,7 @@ wire_makefile_launcher() {
   block="$(cat <<EOF
 ${launcher_start}
 ralphloop:
-	bash .bagakit/long-run/ralphloop.sh pulse --endless
+	bash .bagakit/long-run/ralphloop-runner.sh
 .PHONY: ralphloop
 ${launcher_end}
 EOF
@@ -200,7 +201,7 @@ wire_shell_launcher() {
 expected="$(cat <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-exec bash .bagakit/long-run/ralphloop.sh pulse --endless "$@"
+exec bash .bagakit/long-run/ralphloop-runner.sh "$@"
 EOF
 )"
 
@@ -227,9 +228,11 @@ write_project_profile() {
 
   python3 - "$project_root" "$profile_file" "$launcher_route" <<'PY'
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 project_root = Path(sys.argv[1]).resolve()
@@ -386,6 +389,30 @@ def launcher_command(route: str) -> str:
     return "./ralphloop"
 
 
+def detect_agent_hint() -> str:
+    for key in ("BAGAKIT_AGENT_CLI", "BAGAKIT_AGENT_CMD"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            return value
+
+    ppid = os.getppid()
+    proc = subprocess.run(
+        ["ps", "-o", "comm=", "-p", str(ppid)],
+        text=True,
+        capture_output=True,
+    )
+    hint = proc.stdout.strip()
+    return hint or "agent-cli"
+
+
+def detect_agent_command() -> str:
+    for key in ("BAGAKIT_AGENT_CMD", "BAGAKIT_AGENT_CLI"):
+        value = os.environ.get(key, "").strip()
+        if value:
+            return value
+    return ""
+
+
 stack, signals = detect_stack()
 quality_commands = detect_package_commands()
 for cmd in detect_make_commands():
@@ -405,6 +432,10 @@ payload = {
     "launcher": {
         "route": launcher_route,
         "command": launcher_command(launcher_route),
+    },
+    "agent": {
+        "hint": detect_agent_hint(),
+        "command": detect_agent_command(),
     },
     "analysis_paths": detect_analysis_paths(),
     "quality_commands": quality_commands,
@@ -431,9 +462,9 @@ if [[ ! -f "$block_file" ]]; then
   echo "missing agents block template: ${block_file}" >&2
   exit 1
 fi
-for required_ref in "$heartbeat_config_template" "$heartbeat_schedules_template" "$heartbeat_inbox_readme_template" "$ralphloop_template"; do
+for required_ref in "$heartbeat_config_template" "$heartbeat_schedules_template" "$heartbeat_inbox_readme_template" "$ralphloop_template" "$ralphloop_runner_template"; do
   if [[ ! -f "$required_ref" ]]; then
-    echo "missing heartbeat reference template: ${required_ref}" >&2
+    echo "missing reference template: ${required_ref}" >&2
     exit 1
   fi
 done
@@ -449,6 +480,7 @@ copy_template "${tpl_dir}/bk-execution-handoff-template.md" "${harness_dir}/bk-e
 copy_template "${tpl_dir}/bk-execution-table-template.json" "${harness_dir}/bk-execution-table.json"
 copy_managed_template "${tpl_dir}/check-and-resume-sh-template.md" "${harness_dir}/check_and_resume.sh"
 copy_managed_template "${tpl_dir}/ralphloop-sh-template.md" "${harness_dir}/ralphloop.sh"
+copy_managed_template "${tpl_dir}/ralphloop-runner-sh-template.md" "${harness_dir}/ralphloop-runner.sh"
 copy_template "$heartbeat_config_template" "${harness_dir}/heartbeat.config.json"
 copy_template "$heartbeat_schedules_template" "${harness_dir}/heartbeat-schedules.json"
 copy_template "$heartbeat_inbox_readme_template" "${inbox_dir}/README.md"
@@ -487,6 +519,9 @@ if [[ -f "${harness_dir}/check_and_resume.sh" ]]; then
 fi
 if [[ -f "${harness_dir}/ralphloop.sh" ]]; then
   chmod +x "${harness_dir}/ralphloop.sh" 2>/dev/null || true
+fi
+if [[ -f "${harness_dir}/ralphloop-runner.sh" ]]; then
+  chmod +x "${harness_dir}/ralphloop-runner.sh" 2>/dev/null || true
 fi
 if [[ -f "${skill_root}/scripts/long-run-heartbeat.py" ]]; then
   chmod +x "${skill_root}/scripts/long-run-heartbeat.py" 2>/dev/null || true
@@ -568,6 +603,8 @@ echo "next:"
 echo "  0) run detect pass with ${rel_harness}/detect_prompt.md and mark table detection.status=ready"
 echo "  1) bash ${rel_harness}/check_and_resume.sh"
 echo "  1b) trigger one pulse: bash ${rel_harness}/ralphloop.sh pulse --endless"
+echo "  1c-setup) export BAGAKIT_AGENT_CMD='<your-agent-command-with-{prompt_file}>'"
+echo "  1c) start continuous loop: bash ${rel_harness}/ralphloop-runner.sh"
 echo "  2) run initializer -> coding loop"
 echo "  3) optional heartbeat tick: python3 \"\$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py\" tick . --json"
 echo "  4) optional schedule list: python3 \"\$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py\" schedule-list ."

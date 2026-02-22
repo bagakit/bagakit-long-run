@@ -58,6 +58,7 @@ bash "${runtime_scripts_dir}/apply-long-run.sh" "$project"
 [[ -f "${harness_dir}/detect_prompt.md" ]]
 [[ -f "${harness_dir}/check_and_resume.sh" ]]
 [[ -f "${harness_dir}/ralphloop.sh" ]]
+[[ -f "${harness_dir}/ralphloop-runner.sh" ]]
 [[ -f "${harness_dir}/project-profile.json" ]]
 [[ -f "${harness_dir}/heartbeat.config.json" ]]
 [[ -f "${harness_dir}/heartbeat-schedules.json" ]]
@@ -71,6 +72,7 @@ bash "${runtime_scripts_dir}/apply-long-run.sh" "$project"
 [[ -f "${project}/ralphloop" ]]
 grep -q "<!-- BAGAKIT:LONGRUN:START -->" "${project}/AGENTS.md"
 grep -q "<!-- BAGAKIT:LONGRUN:END -->" "${project}/AGENTS.md"
+grep -q "ralphloop-runner.sh" "${project}/AGENTS.md"
 grep -q "ralphloop.sh pulse --endless" "${project}/AGENTS.md"
 grep -q "\[\[BAGAKIT\]\]" "${project}/AGENTS.md"
 grep -q "LongRun:" "${project}/AGENTS.md"
@@ -101,6 +103,9 @@ if not isinstance(profile, dict):
 launcher = profile.get("launcher", {})
 if not isinstance(launcher, dict) or "route" not in launcher or "command" not in launcher:
     raise SystemExit("project-profile.json missing launcher route/command")
+agent = profile.get("agent", {})
+if not isinstance(agent, dict) or "hint" not in agent or "command" not in agent:
+    raise SystemExit("project-profile.json missing agent hint/command fields")
 PY
 
 echo "[test] detect quality gate should fail when draft"
@@ -142,6 +147,22 @@ if status == "endless_prompt_ready":
     if not prompt.exists():
         raise SystemExit(f"missing endless prompt file: {payload}")
 PY
+
+echo "[test] ralphloop run dry-run should surface dispatch prompts"
+export BAGAKIT_AGENT_CMD="bash -lc 'exit 0'"
+bash "${harness_dir}/ralphloop.sh" run --endless --dry-run --json >"${tmp}/ralphloop-run.json"
+python3 - <<PY
+import json
+from pathlib import Path
+payload = json.loads(Path(r"${tmp}/ralphloop-run.json").read_text(encoding="utf-8"))
+status = str(payload.get("status", ""))
+if status != "run_dry":
+    raise SystemExit(f"unexpected run status: {payload}")
+prompts = payload.get("executed_prompts", [])
+if not isinstance(prompts, list) or not prompts:
+    raise SystemExit(f"run_dry must include executed_prompts: {payload}")
+PY
+unset BAGAKIT_AGENT_CMD
 
 echo "[test] execution adapters: seed bagakit-ft + openspec"
 mkdir -p "${ft_harness_dir}/index" "${ft_harness_dir}/feats-archived/f-20260215-sync-sample" "${project}/openspec/changes/add-health-check"
@@ -275,6 +296,29 @@ PY
 echo "[test] heartbeat validators"
 python3 "${heartbeat_tool}" validate-config "${project}" >/dev/null
 python3 "${heartbeat_tool}" validate-schedules "${project}" >/dev/null
+
+echo "[test] package.json launcher wiring should target ralphloop-runner"
+node_project="${tmp}/node-project"
+mkdir -p "${node_project}"
+cat > "${node_project}/package.json" <<'EOF'
+{
+  "name": "node-project",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo ok"
+  }
+}
+EOF
+bash "${runtime_scripts_dir}/apply-long-run.sh" "${node_project}" >/dev/null
+python3 - <<PY
+import json
+from pathlib import Path
+p = Path(r"${node_project}/package.json")
+data = json.loads(p.read_text(encoding="utf-8"))
+scripts = data.get("scripts", {})
+if scripts.get("ralphloop") != "bash .bagakit/long-run/ralphloop-runner.sh":
+    raise SystemExit("package.json scripts.ralphloop should target ralphloop-runner")
+PY
 
 echo "[test] heartbeat tick skips when disabled"
 python3 - <<PY

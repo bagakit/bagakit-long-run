@@ -10,6 +10,23 @@ A Bagakit skill focused on driving long-running delivery loops.
 Reference:
 - https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents
 
+## Outer Orchestrator Checklist
+
+1. Determine command route:
+- `package.json` script, `Makefile` target, or standalone shell launcher.
+2. Determine coding CLI:
+- configure `BAGAKIT_AGENT_CMD` (preferred) or `BAGAKIT_AGENT_CLI`.
+- use `"{prompt_file}"` placeholder when command needs explicit prompt path injection.
+3. Implement scripts:
+- keep `ralphloop.sh` for single-step `pulse`/`run`.
+- keep `ralphloop-runner.sh` for infinite outer loop orchestration.
+4. Dry-run:
+- `bash .bagakit/long-run/ralphloop.sh run --endless --dry-run --json`
+5. End-to-end test:
+- run one closed loop with `bash .bagakit/long-run/ralphloop-runner.sh`.
+6. Failure stop policy:
+- if `status=failed`, stop and inspect `resume_stderr_tail` before retry.
+
 ## Core Design
 
 1. Agent-first detect
@@ -53,6 +70,7 @@ Creates:
 - `.bagakit/long-run/coding_prompt.md`
 - `.bagakit/long-run/initializer_prompt.md`
 - `.bagakit/long-run/ralphloop.sh`
+- `.bagakit/long-run/ralphloop-runner.sh`
 - `.bagakit/long-run/project-profile.json` (auto-detected project context)
 - `.bagakit/long-run/feature-list.json`
 - `.bagakit/long-run/bk-execution-handoff.md`
@@ -79,7 +97,20 @@ For unknown/custom upstream systems, use `kind=manual` rows.
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" validate-table .
 ```
 
-### 4. Pulse entry (recommended)
+### 4. Runner entry (continuous, recommended)
+
+```bash
+bash .bagakit/long-run/ralphloop-runner.sh
+```
+
+Behavior:
+- if `BAGAKIT_AGENT_CMD`/`BAGAKIT_AGENT_CLI` is configured, loop continuously: pulse -> agent dispatch -> next round
+- if no agent command is configured, runner falls back to one `pulse --endless`
+- `run` dispatch logic:
+  - `actionable` -> run `initializer_prompt.md` then `coding_prompt.md`
+  - `endless_prompt_ready` -> run `endless_expand_prompt.md`
+
+### 5. Pulse entry (single-step fallback)
 
 ```bash
 bash .bagakit/long-run/ralphloop.sh pulse --endless
@@ -91,7 +122,7 @@ Behavior:
 - if no next row and `--endless`, writes `.bagakit/long-run/endless_expand_prompt.md` for agent-driven plan expansion
 - expansion prompt includes detected stack/paths/quality commands from `project-profile.json`
 
-### 5. Check and resume (fallback/direct)
+### 6. Check and resume (fallback/direct)
 
 ```bash
 bash .bagakit/long-run/check_and_resume.sh
@@ -106,7 +137,7 @@ This runs:
 
 Treat `bash .bagakit/long-run/check_and_resume.sh` as the resume command for every round.
 
-### 6. Initializer pass
+### 7. Initializer pass
 
 Run one initializer pass with:
 - `.bagakit/long-run/initializer_prompt.md`
@@ -115,7 +146,7 @@ Output must be a high-quality single-item handoff in:
 - `.bagakit/long-run/bk-execution-handoff.md`
 - end the response with `[[BAGAKIT]]`, adding `- LongRun: ...`
 
-### 7. Coding pass
+### 8. Coding pass
 
 Run one coding pass with:
 - `.bagakit/long-run/coding_prompt.md`
@@ -126,7 +157,7 @@ Constraints:
 - update status to `done` or `blocked`
 - end the response with `[[BAGAKIT]]`, adding `- LongRun: ...`
 
-### 8. Close the iteration
+### 9. Close the iteration
 
 ```bash
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/validate-long-run.sh" .
@@ -191,6 +222,7 @@ python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" next-action 
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" guide .
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" sync-feature-list .
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-loop.py" pulse . --endless --json
+python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-loop.py" run . --endless --json
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" tick . --json
 python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py" schedule-list .
 ```
