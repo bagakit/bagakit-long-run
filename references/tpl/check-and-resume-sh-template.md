@@ -81,6 +81,7 @@ echo "next_action_file: ${next_action_json}"
 echo
 rel_harness="${harness_dir#${project_root}/}"
 echo "Use:"
+echo "setup) export BAGAKIT_AGENT_CMD='codex exec {prompt_text}'  # non-interactive required"
 echo "0) ${rel_harness}/ralphloop-runner.sh (continuous loop; requires BAGAKIT_AGENT_CMD/BAGAKIT_AGENT_CLI)"
 echo "0b) ${rel_harness}/ralphloop.sh pulse --endless (single pulse fallback)"
 echo "1) ${rel_harness}/detect_prompt.md (when adding/changing upstream systems)"

@@ -61,7 +61,10 @@ Before claiming continuous-loop readiness, complete all steps:
 - pick project launcher route (`package.json` script / `Makefile` target / standalone shell launcher).
 2. Coding CLI selection:
 - set `BAGAKIT_AGENT_CMD` (preferred) or `BAGAKIT_AGENT_CLI` for prompt execution.
+- require non-TUI/non-interactive command form to avoid waiting loops (for example: `codex exec`).
 - ensure command supports `"{prompt_file}"` placeholder (or accepts prompt file as final arg).
+  - example: `export BAGAKIT_AGENT_CMD='codex exec {prompt_text}'`
+  - escape hatch (debug only): `export BAGAKIT_ALLOW_INTERACTIVE_AGENT_CMD=1`
 3. Script implementation:
 - keep `ralphloop.sh` as single-step (`pulse`/`run`) contract entry.
 - keep `ralphloop-runner.sh` as outer infinite loop orchestrator.
@@ -110,6 +113,7 @@ bash .bagakit/long-run/ralphloop-runner.sh
 
 Behavior:
 - if `BAGAKIT_AGENT_CMD`/`BAGAKIT_AGENT_CLI` is configured, loop continuously: pulse -> agent dispatch -> next round
+- `run` rejects interactive/TUI-looking commands for known CLIs; use non-interactive command forms.
 - if agent command is missing, runner falls back to one `pulse --endless`
 - `run` mode dispatches prompts by status:
   - `actionable` -> `initializer_prompt.md` then `coding_prompt.md`

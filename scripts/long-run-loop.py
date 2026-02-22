@@ -17,6 +17,25 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
 
+KNOWN_AGENT_CLI_BINARIES = {
+    "codex",
+    "claude",
+    "cc",
+    "gemini",
+}
+NON_INTERACTIVE_HINTS = (
+    " exec ",
+    " --non-interactive ",
+    " --no-interactive ",
+    " --print ",
+    " --prompt ",
+    " --message ",
+    " --stdin ",
+    " -p ",
+    " {prompt_file} ",
+    " {prompt_text} ",
+)
+
 
 def read_json(path: Path) -> Dict[str, Any]:
     try:
@@ -287,6 +306,34 @@ def resolve_agent_command(profile: Dict[str, Any]) -> str:
     return ""
 
 
+def interactive_agent_command_reason(command_template: str) -> str:
+    if os.environ.get("BAGAKIT_ALLOW_INTERACTIVE_AGENT_CMD", "").strip() == "1":
+        return ""
+
+    text = command_template.strip()
+    if not text:
+        return ""
+    try:
+        parts = shlex.split(text)
+    except ValueError:
+        parts = text.split()
+    if not parts:
+        return ""
+
+    cmd0 = Path(parts[0]).name.lower()
+    if cmd0 not in KNOWN_AGENT_CLI_BINARIES:
+        return ""
+
+    normalized = f" {text.lower()} "
+    if any(hint in normalized for hint in NON_INTERACTIVE_HINTS):
+        return ""
+
+    return (
+        f"agent command '{text}' looks interactive (TUI). "
+        "use non-interactive form (for example: codex exec {prompt_text})."
+    )
+
+
 def render_agent_command(command_template: str, prompt_file: Path, project_root: Path) -> str:
     prompt_file_q = shlex.quote(str(prompt_file))
     project_root_q = shlex.quote(str(project_root))
@@ -363,6 +410,17 @@ def cmd_run(args: argparse.Namespace) -> int:
             {
                 "status": "agent_command_missing",
                 "reason": "set BAGAKIT_AGENT_CMD (or BAGAKIT_AGENT_CLI) to run prompts automatically",
+                "exit_code": 2,
+            }
+        )
+        return emit(result, args.json)
+
+    interactive_reason = interactive_agent_command_reason(agent_command)
+    if interactive_reason:
+        result.update(
+            {
+                "status": "agent_command_interactive",
+                "reason": interactive_reason,
                 "exit_code": 2,
             }
         )

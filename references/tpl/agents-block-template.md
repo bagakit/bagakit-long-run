@@ -8,8 +8,10 @@ Role:
 Tooling:
 - Resolve the installed skill dir as: `export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-long-run}"`
 - Configure coding CLI dispatch command:
-  - preferred: `export BAGAKIT_AGENT_CMD='<your-agent-command-with-{prompt_file}>'`
+  - preferred: `export BAGAKIT_AGENT_CMD='<non-interactive-agent-command-with-{prompt_file}|{prompt_text}>'`
+  - non-interactive form is required to avoid TUI blocking (for example: `export BAGAKIT_AGENT_CMD='codex exec {prompt_text}'`)
   - fallback: `export BAGAKIT_AGENT_CLI='<your-agent-cli>'`
+  - escape hatch (debug only): `export BAGAKIT_ALLOW_INTERACTIVE_AGENT_CMD=1`
 
 Loop Protocol (every round):
 1. Preferred entry: `bash .bagakit/long-run/ralphloop-runner.sh` (continuous loop; requires `BAGAKIT_AGENT_CMD`/`BAGAKIT_AGENT_CLI`).
@@ -23,6 +25,7 @@ Loop Protocol (every round):
 Orchestrator Setup Steps (must be explicit):
 1. select launcher route (`package.json` / `Makefile` / shell).
 2. select coding CLI command (`BAGAKIT_AGENT_CMD` preferred).
+  - non-interactive command form only; avoid TUI entry commands.
 3. verify single-step dispatch: `bash .bagakit/long-run/ralphloop.sh run --endless --dry-run --json`.
 4. run continuous orchestrator: `bash .bagakit/long-run/ralphloop-runner.sh`.
 5. if loop fails, stop and inspect `resume_stderr_tail` before next retry.

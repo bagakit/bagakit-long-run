@@ -10,6 +10,8 @@ if [[ -z "${BAGAKIT_AGENT_CMD:-}" && -z "${BAGAKIT_AGENT_CLI:-}" ]]; then
   exec bash "${harness_dir}/ralphloop.sh" pulse --endless "$@"
 fi
 
+echo "info: outer runner expects non-interactive agent command (for example: codex exec ...)." >&2
+
 while true; do
   bash "${harness_dir}/ralphloop.sh" run --endless "$@"
 

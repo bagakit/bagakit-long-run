@@ -74,6 +74,7 @@ grep -q "<!-- BAGAKIT:LONGRUN:START -->" "${project}/AGENTS.md"
 grep -q "<!-- BAGAKIT:LONGRUN:END -->" "${project}/AGENTS.md"
 grep -q "ralphloop-runner.sh" "${project}/AGENTS.md"
 grep -q "ralphloop.sh pulse --endless" "${project}/AGENTS.md"
+grep -q "codex exec" "${project}/AGENTS.md"
 grep -q "\[\[BAGAKIT\]\]" "${project}/AGENTS.md"
 grep -q "LongRun:" "${project}/AGENTS.md"
 grep -q "Confidence=" "${project}/AGENTS.md"
@@ -161,6 +162,21 @@ if status != "run_dry":
 prompts = payload.get("executed_prompts", [])
 if not isinstance(prompts, list) or not prompts:
     raise SystemExit(f"run_dry must include executed_prompts: {payload}")
+PY
+unset BAGAKIT_AGENT_CMD
+
+echo "[test] ralphloop run rejects interactive cli command"
+export BAGAKIT_AGENT_CMD="codex"
+if bash "${harness_dir}/ralphloop.sh" run --endless --dry-run --json >"${tmp}/ralphloop-run-interactive.json" 2>/dev/null; then
+  echo "[test] expected run to fail when BAGAKIT_AGENT_CMD looks interactive" >&2
+  exit 1
+fi
+python3 - <<PY
+import json
+from pathlib import Path
+payload = json.loads(Path(r"${tmp}/ralphloop-run-interactive.json").read_text(encoding="utf-8"))
+if payload.get("status") != "agent_command_interactive":
+    raise SystemExit(f"unexpected status for interactive command: {payload}")
 PY
 unset BAGAKIT_AGENT_CMD
 
@@ -521,7 +537,7 @@ proc = subprocess.run(
 if not proc.stdout.strip():
     raise SystemExit(f"missing json output, stderr={proc.stderr}")
 payload = json.loads(proc.stdout)
-if payload.get("status") != "failed" or payload.get("reason") != "command_timeout":
+if payload.get("status") != "failed" or payload.get("reason") not in {"command_timeout", "preflight_command_timeout"}:
     raise SystemExit(f"expected timeout failure, got: {payload}")
 PY
 

@@ -16,7 +16,10 @@ Reference:
 - `package.json` script, `Makefile` target, or standalone shell launcher.
 2. Determine coding CLI:
 - configure `BAGAKIT_AGENT_CMD` (preferred) or `BAGAKIT_AGENT_CLI`.
+- require non-TUI/non-interactive command form to avoid blocking loops (for example `codex exec`).
 - use `"{prompt_file}"` placeholder when command needs explicit prompt path injection.
+  - example: `export BAGAKIT_AGENT_CMD='codex exec {prompt_text}'`
+  - escape hatch (debug only): `export BAGAKIT_ALLOW_INTERACTIVE_AGENT_CMD=1`
 3. Implement scripts:
 - keep `ralphloop.sh` for single-step `pulse`/`run`.
 - keep `ralphloop-runner.sh` for infinite outer loop orchestration.
@@ -105,6 +108,7 @@ bash .bagakit/long-run/ralphloop-runner.sh
 
 Behavior:
 - if `BAGAKIT_AGENT_CMD`/`BAGAKIT_AGENT_CLI` is configured, loop continuously: pulse -> agent dispatch -> next round
+- `run` rejects interactive/TUI-looking commands for known CLIs; use non-interactive command forms.
 - if no agent command is configured, runner falls back to one `pulse --endless`
 - `run` dispatch logic:
   - `actionable` -> run `initializer_prompt.md` then `coding_prompt.md`
