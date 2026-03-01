@@ -63,6 +63,17 @@
       "rows": []
     }
   ],
+  "maintenance": {
+    "archive": {
+      "enabled": true,
+      "manual_done_keep": 120,
+      "manual_done_max_archive_per_run": 60,
+      "statuses": [
+        "done"
+      ],
+      "archive_dir": ".bagakit/long-run/archive/execution-table"
+    }
+  },
   "guidance": {
     "global": {
       "analyze_when": [

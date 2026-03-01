@@ -42,6 +42,11 @@ QUALITY_REQUIRED_PLAN_ITEMS = [
     "Verification or gate expectation",
     "Risk and rollback note",
 ]
+DEFAULT_ARCHIVE_DIR = str(LONG_RUN_DIR / "archive" / "execution-table")
+DEFAULT_MANUAL_DONE_KEEP = 120
+DEFAULT_MANUAL_DONE_MAX_ARCHIVE = 60
+DEFAULT_ARCHIVE_STATUSES = {"done"}
+ALLOWED_ARCHIVE_STATUSES = {"done"}
 
 DEFAULT_TABLE: Dict[str, Any] = {
     "version": "1",
@@ -92,6 +97,15 @@ DEFAULT_TABLE: Dict[str, Any] = {
             "rows": [],
         },
     ],
+    "maintenance": {
+        "archive": {
+            "enabled": True,
+            "manual_done_keep": DEFAULT_MANUAL_DONE_KEEP,
+            "manual_done_max_archive_per_run": DEFAULT_MANUAL_DONE_MAX_ARCHIVE,
+            "statuses": sorted(DEFAULT_ARCHIVE_STATUSES),
+            "archive_dir": DEFAULT_ARCHIVE_DIR,
+        }
+    },
     "guidance": {
         "global": {
             "analyze_when": [
@@ -191,6 +205,36 @@ def parse_int(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def parse_bool(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return bool(value)
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def normalize_statuses(value: Any, fallback: set[str]) -> set[str]:
+    if isinstance(value, list):
+        out = {str(item).strip() for item in value if str(item).strip()}
+        if out:
+            return out
+    return set(fallback)
+
+
+def sanitize_archive_statuses(statuses: set[str]) -> tuple[set[str], List[str]]:
+    normalized = {str(item).strip() for item in statuses if str(item).strip()}
+    allowed = {status for status in normalized if status in ALLOWED_ARCHIVE_STATUSES}
+    ignored = sorted(normalized - ALLOWED_ARCHIVE_STATUSES)
+    if not allowed:
+        allowed = set(DEFAULT_ARCHIVE_STATUSES)
+    return allowed, ignored
 
 
 def parse_confidence(value: Any, default: float) -> float:
@@ -1034,7 +1078,7 @@ def cmd_validate_table(args: argparse.Namespace) -> int:
         for issue in issues:
             print(f"error: {issue}", file=sys.stderr)
         print(
-            f"next: use detect prompt at {(resolve_long_run_dir(project_root) / 'detect_prompt.md')}",
+            f"next: use detect prompt at {(resolve_long_run_dir(project_root) / '.gen' / 'detect_prompt.md')}",
             file=sys.stderr,
         )
         return 1
@@ -1495,6 +1539,223 @@ def cmd_sync_feature_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def default_archive_file(project_root: Path, archive_dir: str) -> Path:
+    now = datetime.now(timezone.utc)
+    dir_path = Path(archive_dir)
+    if not dir_path.is_absolute():
+        dir_path = project_root / dir_path
+    return dir_path / f"manual-rows-{now.strftime('%Y%m')}.ndjson"
+
+
+def append_ndjson(path: Path, entries: List[Dict[str, Any]]) -> None:
+    if not entries:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        for entry in entries:
+            handle.write(json.dumps(entry, ensure_ascii=False))
+            handle.write("\n")
+
+
+def read_archive_config(table: Dict[str, Any]) -> Dict[str, Any]:
+    maintenance = table.get("maintenance", {}) if isinstance(table.get("maintenance"), dict) else {}
+    archive = maintenance.get("archive", {}) if isinstance(maintenance.get("archive"), dict) else {}
+    return {
+        "enabled": parse_bool(archive.get("enabled"), True),
+        "manual_done_keep": max(1, parse_int(archive.get("manual_done_keep"), DEFAULT_MANUAL_DONE_KEEP)),
+        "manual_done_max_archive_per_run": max(
+            0, parse_int(archive.get("manual_done_max_archive_per_run"), DEFAULT_MANUAL_DONE_MAX_ARCHIVE)
+        ),
+        "statuses": normalize_statuses(archive.get("statuses"), DEFAULT_ARCHIVE_STATUSES),
+        "archive_dir": str(archive.get("archive_dir", DEFAULT_ARCHIVE_DIR)).strip() or DEFAULT_ARCHIVE_DIR,
+    }
+
+
+def archive_manual_rows(
+    table: Dict[str, Any],
+    archive_statuses: set[str],
+    manual_done_keep: int,
+    manual_done_max_archive_per_run: int,
+) -> Dict[str, Any]:
+    adapters = table.get("adapters", [])
+    if not isinstance(adapters, list):
+        return {
+            "changed": False,
+            "rows_archived": 0,
+            "manual_adapters_touched": 0,
+            "entries": [],
+        }
+
+    archived_at = utc_now()
+    entries: List[Dict[str, Any]] = []
+    changed = False
+    rows_archived = 0
+    manual_adapters_touched = 0
+    manual_blocked_rows_detected = 0
+
+    for adapter in adapters:
+        if not isinstance(adapter, dict):
+            continue
+        if str(adapter.get("kind", "")).strip() != "manual":
+            continue
+
+        rows = adapter.get("rows", [])
+        if not isinstance(rows, list) or not rows:
+            continue
+
+        candidate_indexes: List[int] = []
+        for idx, row in enumerate(rows):
+            if not isinstance(row, dict):
+                continue
+            status = str(row.get("status", "")).strip()
+            if status == "blocked":
+                manual_blocked_rows_detected += 1
+            if status in archive_statuses:
+                candidate_indexes.append(idx)
+
+        if len(candidate_indexes) <= manual_done_keep:
+            continue
+
+        overflow = len(candidate_indexes) - manual_done_keep
+        if manual_done_max_archive_per_run > 0:
+            overflow = min(overflow, manual_done_max_archive_per_run)
+        if overflow <= 0:
+            continue
+
+        indexes_to_archive = set(candidate_indexes[:overflow])
+        retained_rows: List[Any] = []
+        adapter_name = str(adapter.get("name", "manual")).strip() or "manual"
+
+        for idx, row in enumerate(rows):
+            if idx not in indexes_to_archive:
+                retained_rows.append(row)
+                continue
+            if not isinstance(row, dict):
+                continue
+            entries.append(
+                {
+                    "archived_at": archived_at,
+                    "reason": "manual_done_overflow",
+                    "adapter": adapter_name,
+                    "status": str(row.get("status", "")).strip(),
+                    "row_id": str(row.get("id", "")).strip(),
+                    "row_title": str(row.get("title", "")).strip(),
+                    "row": row,
+                }
+            )
+            rows_archived += 1
+
+        adapter["rows"] = retained_rows
+        changed = True
+        manual_adapters_touched += 1
+
+    return {
+        "changed": changed,
+        "rows_archived": rows_archived,
+        "manual_adapters_touched": manual_adapters_touched,
+        "manual_blocked_rows_detected": manual_blocked_rows_detected,
+        "entries": entries,
+    }
+
+
+def cmd_archive_table(args: argparse.Namespace) -> int:
+    project_root = Path(args.project_root).resolve()
+    table_path, table = load_execution_table(project_root, args.table)
+    config = read_archive_config(table)
+
+    enabled = config["enabled"]
+    if args.enabled is not None:
+        enabled = parse_bool(args.enabled, enabled)
+    if not enabled:
+        payload = {
+            "table_path": str(table_path) if table_path else "",
+            "archive_enabled": False,
+            "changed": False,
+            "rows_archived": 0,
+            "manual_adapters_touched": 0,
+            "manual_blocked_rows_detected": 0,
+            "archive_file": "",
+            "warnings": [],
+        }
+        if args.json:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            print("archive_table: skipped (disabled)")
+        return 0
+
+    keep_done = config["manual_done_keep"]
+    if args.manual_done_keep is not None:
+        keep_done = max(1, int(args.manual_done_keep))
+
+    max_archive = config["manual_done_max_archive_per_run"]
+    if args.manual_done_max_archive is not None:
+        max_archive = max(0, int(args.manual_done_max_archive))
+
+    warnings: List[str] = []
+    statuses = config["statuses"]
+    if args.statuses:
+        statuses = normalize_statuses([s for s in args.statuses.split(",") if s.strip()], statuses)
+    statuses, ignored_statuses = sanitize_archive_statuses(set(statuses))
+    if ignored_statuses:
+        warnings.append(
+            "archive-table supports manual+done only; ignored statuses: " + ", ".join(ignored_statuses)
+        )
+
+    if args.archive_file:
+        archive_file_raw = Path(args.archive_file)
+        if not archive_file_raw.is_absolute():
+            archive_file_raw = project_root / archive_file_raw
+        archive_file = archive_file_raw.resolve()
+    else:
+        archive_file = default_archive_file(project_root, config["archive_dir"])
+    result = archive_manual_rows(
+        table=table,
+        archive_statuses=statuses,
+        manual_done_keep=keep_done,
+        manual_done_max_archive_per_run=max_archive,
+    )
+    manual_blocked_rows_detected = parse_int(result.get("manual_blocked_rows_detected"), 0)
+    if manual_blocked_rows_detected > 0:
+        warnings.append(
+            f"manual blocked rows detected={manual_blocked_rows_detected}; blocked rows are not archived, please review/unblock"
+        )
+
+    if bool(result.get("changed")):
+        save_json(table_path, table)
+        entries = result.get("entries", [])
+        if isinstance(entries, list):
+            append_ndjson(archive_file, [entry for entry in entries if isinstance(entry, dict)])
+
+    payload = {
+        "table_path": str(table_path) if table_path else "",
+        "archive_enabled": True,
+        "changed": bool(result.get("changed")),
+        "rows_archived": parse_int(result.get("rows_archived"), 0),
+        "manual_adapters_touched": parse_int(result.get("manual_adapters_touched"), 0),
+        "manual_blocked_rows_detected": manual_blocked_rows_detected,
+        "archive_file": str(archive_file) if bool(result.get("changed")) else "",
+        "status_filter": sorted(statuses),
+        "manual_done_keep": keep_done,
+        "manual_done_max_archive_per_run": max_archive,
+        "warnings": warnings,
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print(
+            "archive_table: rows_archived={rows} adapters_touched={adapters} changed={changed}".format(
+                rows=payload["rows_archived"],
+                adapters=payload["manual_adapters_touched"],
+                changed=payload["changed"],
+            )
+        )
+        if payload["archive_file"]:
+            print(f"archive_file: {payload['archive_file']}")
+        for warning in warnings:
+            print(f"warn: {warning}", file=sys.stderr)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="bagakit-long-run execution-table adapters")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1538,6 +1799,28 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync.add_argument("--table", default="")
     p_sync.add_argument("--feature-file", default="")
     p_sync.set_defaults(func=cmd_sync_feature_list)
+
+    p_archive = sub.add_parser(
+        "archive-table",
+        help="archive overflow manual rows (default: trim done rows and persist to ndjson log)",
+    )
+    p_archive.add_argument("project_root")
+    p_archive.add_argument("--table", default="")
+    p_archive.add_argument("--archive-file", default="")
+    p_archive.add_argument("--manual-done-keep", type=int, default=None)
+    p_archive.add_argument("--manual-done-max-archive", type=int, default=None)
+    p_archive.add_argument(
+        "--statuses",
+        default="",
+        help="comma-separated status filter candidate; only 'done' is supported and others are ignored",
+    )
+    p_archive.add_argument(
+        "--enabled",
+        default=None,
+        help="override maintenance.archive.enabled (true/false)",
+    )
+    p_archive.add_argument("--json", action="store_true")
+    p_archive.set_defaults(func=cmd_archive_table)
 
     return parser
 

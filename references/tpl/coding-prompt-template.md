@@ -31,6 +31,10 @@ You are the coding agent for this repository.
    - `- LongRun: Item=<execution-item-id>; Status=done|blocked; Confidence=0.00~1.00; Evidence=acceptance checks + gate/test outcomes; Next=bash .bagakit/long-run/check_and_resume.sh`
    - If you are stopping the loop for this session (not continuing right now), also add:
      - `- LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why not fully complete + unblock/next step>`
+10. Before final output, run a brief self-reflection:
+   - do checks truly support current status?
+   - did this pass accidentally drift into a second item?
+   - what is the sharpest risk left for the next round?
 
 ## Constraints
 
@@ -40,3 +44,30 @@ You are the coding agent for this repository.
 - Keep changes focused and reviewable.
 - If blocked, stop and document concrete unblock action.
 - Do not omit the `- LongRun: ...` footer line under `[[BAGAKIT]]`.
+
+## Outcome JSON Contract (must)
+
+At the end of your response, append machine-readable outcome JSON wrapped by markers:
+
+<!-- LONG_RUN_OUTCOME_JSON:START -->
+```json
+{
+  "schema_version": "1",
+  "pass": "coding",
+  "item_id": "<execution-item-id>",
+  "status": "done|in_progress|blocked|retry|no_action",
+  "evidence": [
+    {"type": "check", "name": "<gate-or-test>", "result": "pass|fail", "artifact": "<optional-path>"},
+    {"type": "reflection", "name": "coding_self_review", "result": "pass|fail", "artifact": "<optional-note-or-handoff>"}
+  ],
+  "anomaly_codes": [],
+  "next_command": "bash .bagakit/long-run/check_and_resume.sh",
+  "confidence": 0.00
+}
+```
+<!-- LONG_RUN_OUTCOME_JSON:END -->
+
+Notes:
+- `pass` must match current pass type exactly.
+- `item_id` must match current execution item.
+- If blocked/retry/no_action, include concrete anomaly codes and unblock direction.

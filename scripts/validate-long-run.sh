@@ -13,15 +13,23 @@ fi
 project_root="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 harness_dir="${project_root}/.bagakit/long-run"
+gen_dir="${harness_dir}/.gen"
 agents_file="${project_root}/AGENTS.md"
 feature_file="${harness_dir}/feature-list.json"
 handoff_file="${harness_dir}/bk-execution-handoff.md"
 execution_table_file="${harness_dir}/bk-execution-table.json"
-detect_prompt="${harness_dir}/detect_prompt.md"
-initializer_prompt="${harness_dir}/initializer_prompt.md"
-coding_prompt="${harness_dir}/coding_prompt.md"
+detect_prompt="${gen_dir}/detect_prompt.md"
+initializer_prompt="${gen_dir}/initializer_prompt.md"
+coding_prompt="${gen_dir}/coding_prompt.md"
+compat_detect_prompt="${harness_dir}/detect_prompt.md"
+compat_initializer_prompt="${harness_dir}/initializer_prompt.md"
+compat_coding_prompt="${harness_dir}/coding_prompt.md"
+managed_resume_script="${gen_dir}/check_and_resume.sh"
+managed_ralphloop_script="${gen_dir}/ralphloop.sh"
+managed_runner_script="${gen_dir}/ralphloop-runner.sh"
 resume_script="${harness_dir}/check_and_resume.sh"
 ralphloop_script="${harness_dir}/ralphloop.sh"
+ralphloop_runner_script="${harness_dir}/ralphloop-runner.sh"
 project_profile_file="${harness_dir}/project-profile.json"
 heartbeat_config_file="${harness_dir}/heartbeat.config.json"
 heartbeat_schedules_file="${harness_dir}/heartbeat-schedules.json"
@@ -35,6 +43,7 @@ legacy_initial_prompt="${harness_dir}/initial_prompt.md"
 feature_tool="${script_dir}/long-run-features.py"
 execution_tool="${script_dir}/long-run-execution.py"
 loop_tool="${script_dir}/long-run-loop.py"
+outcome_schema_file="${script_dir}/../references/schema/long-run-outcome.schema.json"
 heartbeat_tool="${script_dir}/long-run-heartbeat.py"
 
 errors=0
@@ -57,7 +66,22 @@ fi
 if [[ ! -d "$harness_dir" ]]; then
   fail "missing harness dir: ${harness_dir}"
 else
-  for f in "$feature_file" "$initializer_prompt" "$coding_prompt" "$resume_script" "$ralphloop_script" "$project_profile_file" "$execution_table_file" "$detect_prompt"; do
+  for f in \
+    "$feature_file" \
+    "$project_profile_file" \
+    "$execution_table_file" \
+    "$detect_prompt" \
+    "$initializer_prompt" \
+    "$coding_prompt" \
+    "$compat_detect_prompt" \
+    "$compat_initializer_prompt" \
+    "$compat_coding_prompt" \
+    "$managed_resume_script" \
+    "$managed_ralphloop_script" \
+    "$managed_runner_script" \
+    "$resume_script" \
+    "$ralphloop_script" \
+    "$ralphloop_runner_script"; do
     if [[ ! -f "$f" ]]; then
       fail "missing required harness file: ${f}"
     fi
@@ -68,11 +92,32 @@ if [[ ! -f "$handoff_file" ]]; then
   fail "missing required handoff file: ${handoff_file}"
 fi
 
+if [[ -f "$managed_resume_script" && ! -x "$managed_resume_script" ]]; then
+  warn "managed resume script is not executable: ${managed_resume_script}"
+fi
+if [[ -f "$managed_ralphloop_script" && ! -x "$managed_ralphloop_script" ]]; then
+  warn "managed ralphloop script is not executable: ${managed_ralphloop_script}"
+fi
+if [[ -f "$managed_runner_script" && ! -x "$managed_runner_script" ]]; then
+  warn "managed ralphloop-runner script is not executable: ${managed_runner_script}"
+fi
 if [[ -f "$resume_script" && ! -x "$resume_script" ]]; then
   warn "resume script is not executable: ${resume_script}"
 fi
 if [[ -f "$ralphloop_script" && ! -x "$ralphloop_script" ]]; then
   warn "ralphloop script is not executable: ${ralphloop_script}"
+fi
+if [[ -f "$ralphloop_runner_script" && ! -x "$ralphloop_runner_script" ]]; then
+  warn "ralphloop-runner script is not executable: ${ralphloop_runner_script}"
+fi
+if [[ -f "$resume_script" ]]; then
+  grep -q "\.gen/check_and_resume.sh" "$resume_script" || fail "root resume wrapper must dispatch to .gen/check_and_resume.sh: ${resume_script}"
+fi
+if [[ -f "$ralphloop_script" ]]; then
+  grep -q "\.gen/ralphloop.sh" "$ralphloop_script" || fail "root ralphloop wrapper must dispatch to .gen/ralphloop.sh: ${ralphloop_script}"
+fi
+if [[ -f "$ralphloop_runner_script" ]]; then
+  grep -q "\.gen/ralphloop-runner.sh" "$ralphloop_runner_script" || fail "root runner wrapper must dispatch to .gen/ralphloop-runner.sh: ${ralphloop_runner_script}"
 fi
 if [[ -f "$project_profile_file" ]]; then
   if ! python3 - "$project_profile_file" >/dev/null <<'PY'
@@ -98,6 +143,24 @@ PY
 fi
 if [[ ! -f "$loop_tool" ]]; then
   fail "missing loop tool: ${loop_tool}"
+fi
+if [[ ! -f "$outcome_schema_file" ]]; then
+  fail "missing outcome schema file: ${outcome_schema_file}"
+else
+  if ! python3 - <<PY >/dev/null
+import json
+from pathlib import Path
+
+schema = json.loads(Path(r"${outcome_schema_file}").read_text(encoding="utf-8"))
+if not isinstance(schema, dict):
+    raise SystemExit(1)
+required = schema.get("required")
+if not isinstance(required, list) or "status" not in required or "evidence" not in required:
+    raise SystemExit(1)
+PY
+  then
+    fail "invalid outcome schema json: ${outcome_schema_file}"
+  fi
 fi
 
 for legacy in "$legacy_init_script" "$legacy_initial_prompt"; do
@@ -227,6 +290,23 @@ for f in "$detect_prompt" "$initializer_prompt" "$coding_prompt"; do
   fi
 done
 
+for f in "$initializer_prompt" "$coding_prompt"; do
+  if [[ -f "$f" ]]; then
+    grep -q "LONG_RUN_OUTCOME_JSON:START" "$f" || fail "prompt missing outcome marker start: ${f}"
+    grep -q "LONG_RUN_OUTCOME_JSON:END" "$f" || fail "prompt missing outcome marker end: ${f}"
+  fi
+done
+
+if [[ -f "$compat_detect_prompt" ]]; then
+  grep -q "\.bagakit/long-run/\.gen/detect_prompt.md" "$compat_detect_prompt" || fail "compat detect prompt pointer must reference .gen/detect_prompt.md: ${compat_detect_prompt}"
+fi
+if [[ -f "$compat_initializer_prompt" ]]; then
+  grep -q "\.bagakit/long-run/\.gen/initializer_prompt.md" "$compat_initializer_prompt" || fail "compat initializer prompt pointer must reference .gen/initializer_prompt.md: ${compat_initializer_prompt}"
+fi
+if [[ -f "$compat_coding_prompt" ]]; then
+  grep -q "\.bagakit/long-run/\.gen/coding_prompt.md" "$compat_coding_prompt" || fail "compat coding prompt pointer must reference .gen/coding_prompt.md: ${compat_coding_prompt}"
+fi
+
 if [[ ! -f "$agents_file" ]]; then
   fail "missing AGENTS.md: ${agents_file}"
 else
@@ -275,6 +355,12 @@ PY
         warn "execution detect: ${line}"
       done <<<"$detect_warnings"
     fi
+  fi
+fi
+
+if [[ -f "$loop_tool" ]]; then
+  if ! python3 "$loop_tool" preflight "$project_root" --json >/dev/null; then
+    fail "loop preflight failed (workspace/tmp/cache not writable)"
   fi
 fi
 

@@ -54,6 +54,17 @@ It is not responsible for:
 - every detect/initializer/coding response ends with `[[BAGAKIT]]` and a peer line `- LongRun: Item=...; Status=...; Confidence=...; Evidence=...; Next=...`.
 - if you stop a session without continuing the loop right now, add a peer line `- LongRunStop: Reason=...; Retro=...` explaining why you stop (and why the plan cannot be fully completed if not done).
 
+## **Outer Orchestrator Runner** (Core Concept)
+
+- `outer orchestrator runner` 指项目内的外层调度器（默认 `.bagakit/long-run/ralphloop-runner.sh`），职责是循环调用 `ralphloop.sh run --endless`，而不是执行业务逻辑。
+- Runner 必须保持 orchestration-only：只做命令调度、失败停止、边界保护、日志观测。
+- 托管生成文件（不建议手改）必须放在 `.bagakit/long-run/.gen/`；根目录脚本保留兼容入口包装器。
+- Runner 必须支持安全边界参数（至少）：
+  - `RALPHLOOP_MAX_ROUNDS`：最大轮数（`0` 表示不限）。
+  - `RALPHLOOP_MAX_RUNTIME_SECONDS`：最大运行时长（秒，`0` 表示不限）。
+  - `RALPHLOOP_MAX_INTERVAL_SECONDS`：轮询最大间隔上限（用于约束 `RALPHLOOP_SLEEP_SECONDS`）。
+- Runner 必须输出可观测日志（终端 + 文件），默认日志文件建议：`.bagakit/long-run/logs/ralphloop-runner.log`。
+
 ## Outer Orchestrator Checklist (Required)
 
 Before claiming continuous-loop readiness, complete all steps:
@@ -68,6 +79,8 @@ Before claiming continuous-loop readiness, complete all steps:
 3. Script implementation:
 - keep `ralphloop.sh` as single-step (`pulse`/`run`) contract entry.
 - keep `ralphloop-runner.sh` as outer infinite loop orchestrator.
+- support safety params: `RALPHLOOP_MAX_ROUNDS`, `RALPHLOOP_MAX_RUNTIME_SECONDS`, `RALPHLOOP_MAX_INTERVAL_SECONDS`.
+- keep log output enabled (`RALPHLOOP_LOG_FILE`, optional `RALPHLOOP_JSON_MODE=1`).
 4. Dry-run verification:
 - run `bash .bagakit/long-run/ralphloop.sh run --endless --dry-run --json`.
 5. End-to-end smoke test:
@@ -88,14 +101,18 @@ Before claiming continuous-loop readiness, complete all steps:
 1) Apply harness files
 
 ```bash
-export BAGAKIT_LONG_RUN_SKILL_DIR="${BAGAKIT_LONG_RUN_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-long-run}"
+export BAGAKIT_LONG_RUN_SKILL_DIR="<path-to-bagakit-long-run-skill>"
 bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/apply-long-run.sh" .
 ```
 
 Apply also injects/updates a managed AGENTS block (`<!-- BAGAKIT:LONGRUN:START -->` ... `<!-- BAGAKIT:LONGRUN:END -->`) with loop-driving instructions.
 
+Startup self-check + migration (required before first loop on existing projects):
+- run `bash .bagakit/long-run/check_and_resume.sh`
+- if self-check reports missing managed `.gen` files, run `bash "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/apply-long-run.sh" . --force` and retry
+
 2) Run detect pass (Agent)
-- Use `.bagakit/long-run/detect_prompt.md`
+- Use `.bagakit/long-run/.gen/detect_prompt.md`
 - Update `.bagakit/long-run/bk-execution-table.json`
 - Set `detection.status=ready`
 
@@ -115,9 +132,21 @@ Behavior:
 - if `BAGAKIT_AGENT_CMD`/`BAGAKIT_AGENT_CLI` is configured, loop continuously: pulse -> agent dispatch -> next round
 - `run` rejects interactive/TUI-looking commands for known CLIs; use non-interactive command forms.
 - if agent command is missing, runner falls back to one `pulse --endless`
+- runner safety/observability envs:
+  - `RALPHLOOP_MAX_ROUNDS`, `RALPHLOOP_MAX_RUNTIME_SECONDS`, `RALPHLOOP_MAX_INTERVAL_SECONDS`
+  - `RALPHLOOP_LOG_FILE` (default `.bagakit/long-run/logs/ralphloop-runner.log`), `RALPHLOOP_JSON_MODE=1`
 - `run` mode dispatches prompts by status:
-  - `actionable` -> `initializer_prompt.md` then `coding_prompt.md`
+  - `actionable(todo)` -> `.gen/initializer_prompt.md`
+  - `actionable(in_progress)` -> `.gen/coding_prompt.md`
   - `endless_prompt_ready` -> `endless_expand_prompt.md`
+- one run round executes exactly one pass (no initializer+coding in same round).
+- after each pass, the loop must re-run `check_and_resume.sh` to decide next pass.
+- strict outcome gate is enabled by default: pass success requires `LONG_RUN_OUTCOME_JSON` markers + schema-valid JSON + evidence-backed status.
+- failures are mapped to deterministic `anomaly_action` (`blocked_stop` | `retryable` | `needs_detect`).
+- temporary rollback switch: `BAGAKIT_LONG_RUN_LEGACY_RC_ONLY=1` (RC-only compatibility mode).
+- async message inbox:
+  - `.bagakit/long-run/ralph-msg.md` is lazily created.
+  - top segment (split by `---`) is injected into this round as user message and moved to `.bagakit/long-run/ralph-msg.consumed.md` (prepended with timestamp + ralph context).
 
 5) Pulse entry (single-step fallback)
 
@@ -140,17 +169,34 @@ bash .bagakit/long-run/check_and_resume.sh
 Treat `bash .bagakit/long-run/check_and_resume.sh` as the resume command for every round.
 This command also writes a structured next-action contract:
 - `.bagakit/long-run/next-action.json`
+- before quality validation, it runs execution-table archive maintenance (`archive-table`) to trim overflow `manual` done rows.
+- archive scope is fixed to `manual + done` only.
+- default archive output: `.bagakit/long-run/archive/execution-table/manual-rows-YYYYMM.ndjson`
+- if manual `blocked` rows are detected, archive step will print warning and keep them untouched.
+- archive knobs:
+  - `BAGAKIT_LONG_RUN_ARCHIVE_DONE_KEEP` (default `120`)
+  - `BAGAKIT_LONG_RUN_ARCHIVE_MAX_PER_RUN` (default `60`)
+  - `BAGAKIT_LONG_RUN_ARCHIVE_FILE` (optional custom file)
+  - `BAGAKIT_LONG_RUN_ARCHIVE_DISABLED=1` (disable archive step)
 
 7) Initializer pass
-- Use `.bagakit/long-run/initializer_prompt.md`
+- Use `.bagakit/long-run/.gen/initializer_prompt.md`
 - Produce high-quality `bk-execution-handoff.md`
 - End the response with `[[BAGAKIT]]` and include `- LongRun: ...`
+- Add a brief reflection before finalizing outcome (selection correctness / handoff completeness / unblock quality).
+- End the response with outcome JSON markers:
+  - `<!-- LONG_RUN_OUTCOME_JSON:START -->`
+  - `<!-- LONG_RUN_OUTCOME_JSON:END -->`
 
 8) Coding pass
-- Use `.bagakit/long-run/coding_prompt.md`
+- Use `.bagakit/long-run/.gen/coding_prompt.md`
 - Execute one item only
 - Update `feature-list.json` and `bk-execution-handoff.md`
 - End the response with `[[BAGAKIT]]` and include `- LongRun: ...`
+- Add a brief reflection before finalizing outcome (evidence sufficiency / scope drift / residual risk).
+- End the response with outcome JSON markers:
+  - `<!-- LONG_RUN_OUTCOME_JSON:START -->`
+  - `<!-- LONG_RUN_OUTCOME_JSON:END -->`
 
 9) Verify and iterate
 
@@ -194,6 +240,12 @@ Built-in kinds:
 
 `manual` rows are how you support arbitrary systems without writing new collectors.
 
+Built-in archive maintenance (optional but enabled by default):
+- configure in `maintenance.archive` inside `bk-execution-table.json`
+- command: `python3 "$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-execution.py" archive-table .`
+- scope: `manual + done` only; manual `blocked` rows are warned but not archived
+- goal: keep active table compact while preserving archived row history in ndjson files
+
 ## Quality Contract
 
 The planning contract (required) includes:
@@ -216,8 +268,8 @@ For manual rows, required fields include:
 - `apply-long-run.sh`: scaffold runtime files
 - `validate-long-run.sh`: validate harness + execution-table quality
 - `long-run-doctor.sh`: diagnose loop health and next actions
-- `long-run-execution.py`: validate-table/detect/plan/next-action/guide/sync-feature-list
-- `long-run-loop.py`: pulse/run entry (`pulse --endless`, `run --endless`) and endless prompt generation
+- `long-run-execution.py`: validate-table/detect/plan/next-action/guide/sync-feature-list/archive-table
+- `long-run-loop.py`: pulse/run/preflight entry (`pulse --endless`, `run --endless`, `preflight`) and strict outcome gating
 - `long-run-features.py`: feature list validate/summary/pick/set-status
 - `long-run-heartbeat.py`: heartbeat tick/flash-ideas/schedule-add|list|remove|render
 - `scripts_dev/test.sh`: self-test

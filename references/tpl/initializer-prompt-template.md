@@ -25,6 +25,10 @@ Your job is planning quality, not code implementation.
    - `- LongRun: Item=<execution-item-id>; Status=in_progress|blocked; Confidence=0.00~1.00; Evidence=handoff updated + why-now/acceptance/commands present; Next=bash .bagakit/long-run/check_and_resume.sh`
    - If you stop this session without continuing, also add:
      - `- LongRunStop: Reason=<done|blocked|paused>; Retro=<if not done: why not fully complete + unblock/next step>`
+7. Before final output, run a brief self-reflection:
+   - does selected item still match highest-priority actionable row?
+   - is handoff complete enough to run without guessing?
+   - if blocked, is unblock action concrete and executable?
 
 ## Handoff Quality Contract (must satisfy)
 
@@ -45,3 +49,30 @@ If this contract cannot be met, mark the item as blocked and document a concrete
 - Do not implement product code in this pass.
 - Do not select multiple execution items.
 - Do not leave ambiguous instructions.
+
+## Outcome JSON Contract (must)
+
+At the end of your response, append machine-readable outcome JSON wrapped by markers:
+
+<!-- LONG_RUN_OUTCOME_JSON:START -->
+```json
+{
+  "schema_version": "1",
+  "pass": "initializer",
+  "item_id": "<execution-item-id>",
+  "status": "done|in_progress|blocked|retry|no_action",
+  "evidence": [
+    {"type": "check", "name": "<gate-or-test>", "result": "pass|fail", "artifact": "<optional-path>"},
+    {"type": "reflection", "name": "initializer_self_review", "result": "pass|fail", "artifact": "bk-execution-handoff.md"}
+  ],
+  "anomaly_codes": [],
+  "next_command": "bash .bagakit/long-run/check_and_resume.sh",
+  "confidence": 0.00
+}
+```
+<!-- LONG_RUN_OUTCOME_JSON:END -->
+
+Notes:
+- `pass` must match current pass type exactly.
+- `item_id` must match current execution item.
+- If blocked/retry/no_action, include concrete anomaly codes and unblock direction.

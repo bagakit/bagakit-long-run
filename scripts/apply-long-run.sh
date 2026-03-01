@@ -31,14 +31,16 @@ skill_root="$(cd "${script_dir}/.." && pwd)"
 refs_dir="${skill_root}/references"
 tpl_dir="${refs_dir}/tpl"
 harness_dir="${project_root}/.bagakit/long-run"
+gen_dir="${harness_dir}/.gen"
 inbox_dir="${harness_dir}/inbox"
 agents_file="${project_root}/AGENTS.md"
 block_file="${tpl_dir}/agents-block-template.md"
 heartbeat_config_template="${tpl_dir}/heartbeat-config-template.json"
 heartbeat_schedules_template="${tpl_dir}/heartbeat-schedules-template.json"
 heartbeat_inbox_readme_template="${tpl_dir}/heartbeat-inbox-readme-template.md"
-ralphloop_template="${tpl_dir}/ralphloop-sh-template.md"
-ralphloop_runner_template="${tpl_dir}/ralphloop-runner-sh-template.md"
+ralphloop_template="${tpl_dir}/ralphloop.sh.tpl"
+ralphloop_runner_template="${tpl_dir}/ralphloop-runner.sh.tpl"
+check_and_resume_template="${tpl_dir}/check-and-resume.sh.tpl"
 start_tag="<!-- BAGAKIT:LONGRUN:START -->"
 end_tag="<!-- BAGAKIT:LONGRUN:END -->"
 launcher_start="# BAGAKIT:LONGRUN:LAUNCHER:START"
@@ -75,6 +77,70 @@ copy_managed_template() {
     return 0
   fi
   cp "$src" "$dest"
+  if [[ $existed -eq 1 ]]; then
+    echo "update: ${dest}"
+  else
+    echo "write: ${dest}"
+  fi
+}
+
+write_managed_script_wrapper() {
+  local dest="$1"
+  local target_rel="$2"
+  local existed=0
+  local content
+  if [[ -e "$dest" ]]; then
+    existed=1
+  fi
+
+  content="$(cat <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+script_dir="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+exec bash "\${script_dir}/${target_rel}" "\$@"
+EOF
+)"
+
+  if [[ -f "$dest" ]] && [[ "$(cat "$dest")" == "$content" ]]; then
+    echo "skip: ${dest} (unchanged)"
+    return 0
+  fi
+
+  printf "%s\n" "$content" > "$dest"
+  if [[ $existed -eq 1 ]]; then
+    echo "update: ${dest}"
+  else
+    echo "write: ${dest}"
+  fi
+}
+
+write_managed_prompt_pointer() {
+  local dest="$1"
+  local canonical_rel="$2"
+  local existed=0
+  local content
+  if [[ -e "$dest" ]]; then
+    existed=1
+  fi
+
+  content="$(cat <<EOF
+<!-- AUTO-GENERATED FILE. DO NOT EDIT. -->
+# Managed Prompt Pointer
+
+Canonical managed prompt: \`${canonical_rel}\`
+
+Use the canonical managed prompt file as the actual agent input.
+Refresh managed files by re-running:
+\`bash "\$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/apply-long-run.sh" .\`
+EOF
+)"
+
+  if [[ -f "$dest" ]] && [[ "$(cat "$dest")" == "$content" ]]; then
+    echo "skip: ${dest} (unchanged)"
+    return 0
+  fi
+
+  printf "%s\n" "$content" > "$dest"
   if [[ $existed -eq 1 ]]; then
     echo "update: ${dest}"
   else
@@ -462,25 +528,31 @@ if [[ ! -f "$block_file" ]]; then
   echo "missing agents block template: ${block_file}" >&2
   exit 1
 fi
-for required_ref in "$heartbeat_config_template" "$heartbeat_schedules_template" "$heartbeat_inbox_readme_template" "$ralphloop_template" "$ralphloop_runner_template"; do
+for required_ref in "$heartbeat_config_template" "$heartbeat_schedules_template" "$heartbeat_inbox_readme_template" "$check_and_resume_template" "$ralphloop_template" "$ralphloop_runner_template"; do
   if [[ ! -f "$required_ref" ]]; then
     echo "missing reference template: ${required_ref}" >&2
     exit 1
   fi
 done
 
-mkdir -p "$harness_dir"
+mkdir -p "$harness_dir" "$gen_dir"
 mkdir -p "${inbox_dir}/history" "${inbox_dir}/flash-ideas" "${harness_dir}/schedules/generated"
 
-copy_managed_template "${tpl_dir}/detect-prompt-template.md" "${harness_dir}/detect_prompt.md"
-copy_managed_template "${tpl_dir}/initializer-prompt-template.md" "${harness_dir}/initializer_prompt.md"
-copy_managed_template "${tpl_dir}/coding-prompt-template.md" "${harness_dir}/coding_prompt.md"
+copy_managed_template "${tpl_dir}/detect-prompt-template.md" "${gen_dir}/detect_prompt.md"
+copy_managed_template "${tpl_dir}/initializer-prompt-template.md" "${gen_dir}/initializer_prompt.md"
+copy_managed_template "${tpl_dir}/coding-prompt-template.md" "${gen_dir}/coding_prompt.md"
 copy_template "${tpl_dir}/feature-list-template.json" "${harness_dir}/feature-list.json"
 copy_template "${tpl_dir}/bk-execution-handoff-template.md" "${harness_dir}/bk-execution-handoff.md"
 copy_template "${tpl_dir}/bk-execution-table-template.json" "${harness_dir}/bk-execution-table.json"
-copy_managed_template "${tpl_dir}/check-and-resume-sh-template.md" "${harness_dir}/check_and_resume.sh"
-copy_managed_template "${tpl_dir}/ralphloop-sh-template.md" "${harness_dir}/ralphloop.sh"
-copy_managed_template "${tpl_dir}/ralphloop-runner-sh-template.md" "${harness_dir}/ralphloop-runner.sh"
+copy_managed_template "${check_and_resume_template}" "${gen_dir}/check_and_resume.sh"
+copy_managed_template "${ralphloop_template}" "${gen_dir}/ralphloop.sh"
+copy_managed_template "${ralphloop_runner_template}" "${gen_dir}/ralphloop-runner.sh"
+write_managed_script_wrapper "${harness_dir}/check_and_resume.sh" ".gen/check_and_resume.sh"
+write_managed_script_wrapper "${harness_dir}/ralphloop.sh" ".gen/ralphloop.sh"
+write_managed_script_wrapper "${harness_dir}/ralphloop-runner.sh" ".gen/ralphloop-runner.sh"
+write_managed_prompt_pointer "${harness_dir}/detect_prompt.md" ".bagakit/long-run/.gen/detect_prompt.md"
+write_managed_prompt_pointer "${harness_dir}/initializer_prompt.md" ".bagakit/long-run/.gen/initializer_prompt.md"
+write_managed_prompt_pointer "${harness_dir}/coding_prompt.md" ".bagakit/long-run/.gen/coding_prompt.md"
 copy_template "$heartbeat_config_template" "${harness_dir}/heartbeat.config.json"
 copy_template "$heartbeat_schedules_template" "${harness_dir}/heartbeat-schedules.json"
 copy_template "$heartbeat_inbox_readme_template" "${inbox_dir}/README.md"
@@ -514,6 +586,15 @@ fi
 remove_legacy_file "${harness_dir}/init.sh"
 remove_legacy_file "${harness_dir}/initial_prompt.md"
 
+if [[ -f "${gen_dir}/check_and_resume.sh" ]]; then
+  chmod +x "${gen_dir}/check_and_resume.sh" 2>/dev/null || true
+fi
+if [[ -f "${gen_dir}/ralphloop.sh" ]]; then
+  chmod +x "${gen_dir}/ralphloop.sh" 2>/dev/null || true
+fi
+if [[ -f "${gen_dir}/ralphloop-runner.sh" ]]; then
+  chmod +x "${gen_dir}/ralphloop-runner.sh" 2>/dev/null || true
+fi
 if [[ -f "${harness_dir}/check_and_resume.sh" ]]; then
   chmod +x "${harness_dir}/check_and_resume.sh" 2>/dev/null || true
 fi
@@ -538,6 +619,18 @@ if [[ ! -f "$gitignore_file" || $force -eq 1 ]]; then
 EOF
   echo "write: ${gitignore_file}"
 fi
+
+ensure_gitignore_entry() {
+  local entry="$1"
+  if ! grep -Fxq "$entry" "$gitignore_file"; then
+    printf "%s\n" "$entry" >> "$gitignore_file"
+    echo "update: ${gitignore_file} (+${entry})"
+  fi
+}
+
+ensure_gitignore_entry "ralph-msg.md"
+ensure_gitignore_entry "ralph-msg.consumed.md"
+ensure_gitignore_entry "archive/execution-table/"
 
 if [[ -f "$agents_file" ]]; then
   if grep -q "${start_tag}" "$agents_file" && ! grep -q "${end_tag}" "$agents_file"; then
@@ -599,12 +692,17 @@ echo "bagakit-long-run harness ready at: ${harness_dir}"
 echo "agents block: BAGAKIT:LONGRUN in ${agents_file}"
 echo "launcher route: ${launcher_route}"
 echo "project profile: ${rel_harness}/project-profile.json"
+echo "managed runtime files: ${rel_harness}/.gen/"
 echo "next:"
-echo "  0) run detect pass with ${rel_harness}/detect_prompt.md and mark table detection.status=ready"
-echo "  1) bash ${rel_harness}/check_and_resume.sh"
-echo "  1b) trigger one pulse: bash ${rel_harness}/ralphloop.sh pulse --endless"
-echo "  1c-setup) export BAGAKIT_AGENT_CMD='codex exec {prompt_text}'  # non-interactive required"
-echo "  1c) start continuous loop: bash ${rel_harness}/ralphloop-runner.sh"
-echo "  2) run initializer -> coding loop"
-echo "  3) optional heartbeat tick: python3 \"\$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py\" tick . --json"
-echo "  4) optional schedule list: python3 \"\$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py\" schedule-list ."
+echo "  0) startup self-check (migration): bash ${rel_harness}/check_and_resume.sh"
+echo "  0b) if self-check reports legacy/incomplete runtime, run: bash \"\$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/apply-long-run.sh\" . --force"
+echo "  1) run detect pass with ${rel_harness}/.gen/detect_prompt.md and mark table detection.status=ready"
+echo "  2) trigger one pulse: bash ${rel_harness}/ralphloop.sh pulse --endless"
+echo "  2-setup) export BAGAKIT_AGENT_CMD='codex exec {prompt_text}'  # non-interactive required"
+echo "  2-setup) export RALPHLOOP_MAX_ROUNDS=50 RALPHLOOP_MAX_RUNTIME_SECONDS=7200 RALPHLOOP_MAX_INTERVAL_SECONDS=30"
+echo "  2-setup) export RALPHLOOP_LOG_FILE='.bagakit/long-run/logs/ralphloop-runner.log'"
+echo "  2c) start continuous loop: bash ${rel_harness}/ralphloop-runner.sh"
+echo "  3) run initializer -> coding loop using ${rel_harness}/.gen/initializer_prompt.md and ${rel_harness}/.gen/coding_prompt.md"
+echo "  3b) optional async note inbox: write segments to ${rel_harness}/ralph-msg.md separated by ---"
+echo "  4) optional heartbeat tick: python3 \"\$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py\" tick . --json"
+echo "  5) optional schedule list: python3 \"\$BAGAKIT_LONG_RUN_SKILL_DIR/scripts/long-run-heartbeat.py\" schedule-list ."

@@ -5,6 +5,14 @@ dev_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 skill_root="$(cd "${dev_script_dir}/.." && pwd)"
 runtime_scripts_dir="${skill_root}/scripts"
 heartbeat_tool="${runtime_scripts_dir}/long-run-heartbeat.py"
+skill_maker_cmd="${skill_root}/../bagakit-skill-maker/scripts/bagakit-skill-maker.sh"
+legacy_skill_maker_cmd="${skill_root}/../bagakit-skill-maker/scripts/bagakit_skill_maker.sh"
+if [[ ! -f "${skill_maker_cmd}" && -f "${legacy_skill_maker_cmd}" ]]; then
+  skill_maker_cmd="${legacy_skill_maker_cmd}"
+fi
+
+echo "[test] runtime hard gates"
+bash "${skill_maker_cmd}" runtime-gate --skill-dir "${skill_root}" >/dev/null
 
 tmp="$(mktemp -d -t bagakit-long-run-test.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
@@ -12,6 +20,7 @@ trap 'rm -rf "$tmp"' EXIT
 project="${tmp}/project"
 mkdir -p "$project"
 harness_dir="${project}/.bagakit/long-run"
+gen_dir="${harness_dir}/.gen"
 ft_harness_dir="${project}/.bagakit/ft-harness"
 
 echo "[test] docs + template policy audit"
@@ -29,6 +38,11 @@ for phrase in required_phrases:
     if phrase not in doc:
         raise SystemExit(f"missing policy phrase in docs/notes-long-run-agent-first-detect.md: {phrase}")
 
+skill_md = (root / "SKILL.md").read_text(encoding="utf-8")
+for phrase in ("## **Outer Orchestrator Runner**", "RALPHLOOP_MAX_ROUNDS", "RALPHLOOP_LOG_FILE", ".bagakit/long-run/.gen/", "archive-table"):
+    if phrase not in skill_md:
+        raise SystemExit(f"missing runner concept/safety phrase in SKILL.md: {phrase}")
+
 resume_doc = (root / "docs" / "guidelines-long-run-resume.md").read_text(encoding="utf-8")
 for phrase in ("bash .bagakit/long-run/check_and_resume.sh", "ralphloop.sh pulse --endless", "LongRunStop:"):
     if phrase not in resume_doc:
@@ -38,6 +52,9 @@ table = json.loads((root / "references" / "tpl" / "bk-execution-table-template.j
 selection = table.get("selection", {})
 if selection.get("strategy") != "status_confidence_evidence_priority":
     raise SystemExit("unexpected selection.strategy in execution table template")
+maintenance = table.get("maintenance", {})
+if not isinstance(maintenance, dict) or not isinstance(maintenance.get("archive"), dict):
+    raise SystemExit("missing maintenance.archive in execution table template")
 adapters = table.get("adapters", [])
 kinds = {str(a.get("kind", "")) for a in adapters if isinstance(a, dict)}
 for kind in ("bagakit-ft", "openspec", "manual"):
@@ -55,10 +72,20 @@ bash "${runtime_scripts_dir}/apply-long-run.sh" "$project"
 
 [[ -f "${harness_dir}/bk-execution-handoff.md" ]]
 [[ -f "${harness_dir}/bk-execution-table.json" ]]
+[[ -d "${gen_dir}" ]]
+[[ -f "${gen_dir}/detect_prompt.md" ]]
+[[ -f "${gen_dir}/initializer_prompt.md" ]]
+[[ -f "${gen_dir}/coding_prompt.md" ]]
+[[ -f "${gen_dir}/check_and_resume.sh" ]]
+[[ -f "${gen_dir}/ralphloop.sh" ]]
+[[ -f "${gen_dir}/ralphloop-runner.sh" ]]
 [[ -f "${harness_dir}/detect_prompt.md" ]]
+[[ -f "${harness_dir}/initializer_prompt.md" ]]
+[[ -f "${harness_dir}/coding_prompt.md" ]]
 [[ -f "${harness_dir}/check_and_resume.sh" ]]
 [[ -f "${harness_dir}/ralphloop.sh" ]]
 [[ -f "${harness_dir}/ralphloop-runner.sh" ]]
+[[ ! -f "${harness_dir}/ralph-msg.md" ]]
 [[ -f "${harness_dir}/project-profile.json" ]]
 [[ -f "${harness_dir}/heartbeat.config.json" ]]
 [[ -f "${harness_dir}/heartbeat-schedules.json" ]]
@@ -70,31 +97,49 @@ bash "${runtime_scripts_dir}/apply-long-run.sh" "$project"
 [[ ! -e "${harness_dir}/initial_prompt.md" ]]
 [[ -f "${project}/AGENTS.md" ]]
 [[ -f "${project}/ralphloop" ]]
+[[ -f "${harness_dir}/.gitignore" ]]
+grep -q "^ralph-msg.md$" "${harness_dir}/.gitignore"
+grep -q "^ralph-msg.consumed.md$" "${harness_dir}/.gitignore"
+grep -q "^archive/execution-table/$" "${harness_dir}/.gitignore"
 grep -q "<!-- BAGAKIT:LONGRUN:START -->" "${project}/AGENTS.md"
 grep -q "<!-- BAGAKIT:LONGRUN:END -->" "${project}/AGENTS.md"
 grep -q "ralphloop-runner.sh" "${project}/AGENTS.md"
 grep -q "ralphloop.sh pulse --endless" "${project}/AGENTS.md"
 grep -q "codex exec" "${project}/AGENTS.md"
+grep -q "RALPHLOOP_MAX_ROUNDS" "${project}/AGENTS.md"
+grep -q "RALPHLOOP_LOG_FILE" "${project}/AGENTS.md"
 grep -q "\[\[BAGAKIT\]\]" "${project}/AGENTS.md"
 grep -q "LongRun:" "${project}/AGENTS.md"
 grep -q "Confidence=" "${project}/AGENTS.md"
 grep -q "LongRunStop:" "${project}/AGENTS.md"
-grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/detect_prompt.md"
-grep -q "LongRun:" "${harness_dir}/detect_prompt.md"
-grep -q "Confidence=" "${harness_dir}/detect_prompt.md"
-grep -q "LongRunStop:" "${harness_dir}/detect_prompt.md"
-grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/initializer_prompt.md"
-grep -q "LongRun:" "${harness_dir}/initializer_prompt.md"
-grep -q "Confidence=" "${harness_dir}/initializer_prompt.md"
-grep -q "LongRunStop:" "${harness_dir}/initializer_prompt.md"
-grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/coding_prompt.md"
-grep -q "LongRun:" "${harness_dir}/coding_prompt.md"
-grep -q "Confidence=" "${harness_dir}/coding_prompt.md"
-grep -q "LongRunStop:" "${harness_dir}/coding_prompt.md"
+grep -q "\[\[BAGAKIT\]\]" "${gen_dir}/detect_prompt.md"
+grep -q "LongRun:" "${gen_dir}/detect_prompt.md"
+grep -q "Confidence=" "${gen_dir}/detect_prompt.md"
+grep -q "LongRunStop:" "${gen_dir}/detect_prompt.md"
+grep -q "\[\[BAGAKIT\]\]" "${gen_dir}/initializer_prompt.md"
+grep -q "LongRun:" "${gen_dir}/initializer_prompt.md"
+grep -q "Confidence=" "${gen_dir}/initializer_prompt.md"
+grep -q "LongRunStop:" "${gen_dir}/initializer_prompt.md"
+grep -q "\[\[BAGAKIT\]\]" "${gen_dir}/coding_prompt.md"
+grep -q "LongRun:" "${gen_dir}/coding_prompt.md"
+grep -q "Confidence=" "${gen_dir}/coding_prompt.md"
+grep -q "LongRunStop:" "${gen_dir}/coding_prompt.md"
+grep -q "\.bagakit/long-run/\.gen/detect_prompt.md" "${harness_dir}/detect_prompt.md"
+grep -q "\.bagakit/long-run/\.gen/initializer_prompt.md" "${harness_dir}/initializer_prompt.md"
+grep -q "\.bagakit/long-run/\.gen/coding_prompt.md" "${harness_dir}/coding_prompt.md"
+grep -q "\.gen/check_and_resume.sh" "${harness_dir}/check_and_resume.sh"
+grep -q "\.gen/ralphloop.sh" "${harness_dir}/ralphloop.sh"
+grep -q "\.gen/ralphloop-runner.sh" "${harness_dir}/ralphloop-runner.sh"
+grep -q "Startup self-check (migration)" "${gen_dir}/check_and_resume.sh"
+grep -q "migration: bash" "${gen_dir}/check_and_resume.sh"
 grep -q "\[\[BAGAKIT\]\]" "${harness_dir}/bk-execution-handoff.md"
 grep -q "^- LongRun:" "${harness_dir}/bk-execution-handoff.md"
 grep -q "Confidence=" "${harness_dir}/bk-execution-handoff.md"
 grep -q "LongRunStop:" "${harness_dir}/bk-execution-handoff.md"
+grep -q "RALPHLOOP_MAX_ROUNDS" "${gen_dir}/ralphloop-runner.sh"
+grep -q "RALPHLOOP_MAX_RUNTIME_SECONDS" "${gen_dir}/ralphloop-runner.sh"
+grep -q "RALPHLOOP_MAX_INTERVAL_SECONDS" "${gen_dir}/ralphloop-runner.sh"
+grep -q "RALPHLOOP_LOG_FILE" "${gen_dir}/ralphloop-runner.sh"
 python3 - <<PY
 import json
 from pathlib import Path
@@ -130,12 +175,119 @@ det["upstream_systems"] = ["bagakit-ft"]
 p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
 
+echo "[test] execution archive-table should compact manual done overflow rows"
+python3 - <<PY
+import json
+from pathlib import Path
+
+p = Path(r"${harness_dir}/bk-execution-table.json")
+data = json.loads(p.read_text(encoding="utf-8"))
+manual = None
+for adapter in data.get("adapters", []):
+    if isinstance(adapter, dict) and str(adapter.get("kind")) == "manual":
+        manual = adapter
+        break
+if manual is None:
+    raise SystemExit("missing manual adapter")
+manual["enabled"] = True
+manual["rows"] = [
+    {
+        "id": f"manual-done-{i}",
+        "title": f"Done Row {i}",
+        "status": "done",
+        "source_ref": f"src/ref-{i}",
+        "why_now": "history",
+        "acceptance_criteria": ["a", "b"],
+        "files_to_touch": ["a.txt"],
+        "commands": ["echo ok"],
+        "confidence": 0.2,
+        "evidence": ["done"],
+    }
+    for i in range(1, 6)
+] + [
+    {
+        "id": "manual-todo-1",
+        "title": "Todo Row",
+        "status": "todo",
+        "source_ref": "src/todo",
+        "why_now": "next",
+        "acceptance_criteria": ["a", "b"],
+        "files_to_touch": ["b.txt"],
+        "commands": ["echo todo"],
+        "confidence": 0.8,
+        "evidence": ["todo"],
+    },
+    {
+        "id": "manual-blocked-1",
+        "title": "Blocked Row",
+        "status": "blocked",
+        "source_ref": "src/blocked",
+        "why_now": "blocked",
+        "acceptance_criteria": ["a", "b"],
+        "files_to_touch": ["c.txt"],
+        "commands": ["echo blocked"],
+        "confidence": 0.2,
+        "evidence": ["blocked"],
+    }
+]
+p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+python3 "${runtime_scripts_dir}/long-run-execution.py" archive-table "${project}" --table "${harness_dir}/bk-execution-table.json" --manual-done-keep 2 --manual-done-max-archive 10 --statuses "done,blocked" --json >"${tmp}/archive-table.json"
+python3 - <<PY
+import json
+from pathlib import Path
+
+payload = json.loads(Path(r"${tmp}/archive-table.json").read_text(encoding="utf-8"))
+if int(payload.get("rows_archived", 0)) != 3:
+    raise SystemExit(f"archive-table rows_archived mismatch: {payload}")
+if payload.get("status_filter") != ["done"]:
+    raise SystemExit(f"archive-table must enforce done-only filter: {payload}")
+if int(payload.get("manual_blocked_rows_detected", 0)) != 1:
+    raise SystemExit(f"archive-table should report blocked rows: {payload}")
+warnings = payload.get("warnings", [])
+if not isinstance(warnings, list):
+    raise SystemExit(f"archive-table warnings must be list: {payload}")
+if not any("ignored statuses" in str(item) for item in warnings):
+    raise SystemExit(f"archive-table should warn ignored statuses: {payload}")
+if not any("blocked rows" in str(item) for item in warnings):
+    raise SystemExit(f"archive-table should warn blocked rows: {payload}")
+archive_file = payload.get("archive_file", "")
+if not archive_file:
+    raise SystemExit(f"archive-table should report archive_file when changed: {payload}")
+archive_path = Path(archive_file)
+if not archive_path.exists():
+    raise SystemExit(f"archive file missing: {archive_path}")
+lines = [line for line in archive_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+if len(lines) < 3:
+    raise SystemExit(f"archive file should contain at least 3 lines: {archive_path}")
+
+table = json.loads(Path(r"${harness_dir}/bk-execution-table.json").read_text(encoding="utf-8"))
+manual = None
+for adapter in table.get("adapters", []):
+    if isinstance(adapter, dict) and str(adapter.get("kind")) == "manual":
+        manual = adapter
+        break
+if manual is None:
+    raise SystemExit("manual adapter missing after archive-table")
+rows = [row for row in manual.get("rows", []) if isinstance(row, dict)]
+done_rows = [row for row in rows if row.get("status") == "done"]
+todo_rows = [row for row in rows if row.get("status") == "todo"]
+blocked_rows = [row for row in rows if row.get("status") == "blocked"]
+if len(done_rows) != 2:
+    raise SystemExit(f"expected exactly 2 done rows after archive-table, got {len(done_rows)}")
+if len(todo_rows) != 1:
+    raise SystemExit(f"expected todo row to be preserved, got {len(todo_rows)}")
+if len(blocked_rows) != 1:
+    raise SystemExit(f"expected blocked row to be preserved, got {len(blocked_rows)}")
+PY
+
 echo "[test] validate harness"
 bash "${runtime_scripts_dir}/validate-long-run.sh" "$project"
 
 echo "[test] ralphloop endless prompt generation when no next row"
 export BAGAKIT_LONG_RUN_SKILL_DIR="${skill_root}"
 bash "${harness_dir}/ralphloop.sh" pulse --endless --json >"${tmp}/ralphloop.json"
+[[ -f "${harness_dir}/ralph-msg.md" ]]
 python3 - <<PY
 import json
 from pathlib import Path
@@ -162,8 +314,262 @@ if status != "run_dry":
 prompts = payload.get("executed_prompts", [])
 if not isinstance(prompts, list) or not prompts:
     raise SystemExit(f"run_dry must include executed_prompts: {payload}")
+pulse_status = str(payload.get("pulse_status", ""))
+if pulse_status == "actionable":
+    if len(prompts) != 1:
+        raise SystemExit(f"actionable round must dispatch exactly one pass: {payload}")
+    if not all("/.gen/" in str(item) for item in prompts):
+        raise SystemExit(f"run_dry actionable prompts must point to .gen managed files: {payload}")
+elif pulse_status == "endless_prompt_ready":
+    if len(prompts) != 1:
+        raise SystemExit(f"endless round must dispatch exactly one pass: {payload}")
+    if not all(str(item).endswith("endless_expand_prompt.md") for item in prompts):
+        raise SystemExit(f"run_dry endless prompts must point to endless_expand_prompt.md: {payload}")
 PY
 unset BAGAKIT_AGENT_CMD
+
+bagakit_test_pass="$(python3 - <<PY
+import json
+from pathlib import Path
+payload = json.loads(Path(r"${tmp}/ralphloop-run.json").read_text(encoding="utf-8"))
+value = str(payload.get("selected_pass", "")).strip()
+if not value:
+    raise SystemExit("missing selected_pass in dry-run payload")
+print(value)
+PY
+)"
+bagakit_test_item_id="$(python3 - <<PY
+import json
+from pathlib import Path
+payload = json.loads(Path(r"${tmp}/ralphloop-run.json").read_text(encoding="utf-8"))
+selected_pass = str(payload.get("selected_pass", "")).strip()
+next_row_id = str(payload.get("next_row_id", "")).strip()
+if selected_pass == "endless_expand":
+    print("none")
+else:
+    if not next_row_id:
+        raise SystemExit(f"missing next_row_id for pass={selected_pass}")
+    print(next_row_id)
+PY
+)"
+export BAGAKIT_TEST_PASS="${bagakit_test_pass}"
+export BAGAKIT_TEST_ITEM_ID="${bagakit_test_item_id}"
+
+echo "[test] strict outcome gate: blocked semantic status must fail even with rc=0"
+blocked_script="${tmp}/blocked-outcome-agent.sh"
+cat > "${blocked_script}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+pass="${BAGAKIT_TEST_PASS:?BAGAKIT_TEST_PASS is required}"
+item_id="${BAGAKIT_TEST_ITEM_ID:?BAGAKIT_TEST_ITEM_ID is required}"
+cat <<JSON >&2
+<!-- LONG_RUN_OUTCOME_JSON:START -->
+{
+  "schema_version": "1",
+  "pass": "${pass}",
+  "item_id": "${item_id}",
+  "status": "blocked",
+  "evidence": [
+    {"type": "check", "name": "acceptance", "result": "fail", "artifact": "n/a"}
+  ],
+  "anomaly_codes": ["ACCEPTANCE_FAILED"],
+  "next_command": "bash .bagakit/long-run/check_and_resume.sh",
+  "confidence": 0.20
+}
+<!-- LONG_RUN_OUTCOME_JSON:END -->
+JSON
+EOF
+chmod +x "${blocked_script}"
+export BAGAKIT_AGENT_CMD="bash '${blocked_script}' {prompt_file}"
+if bash "${harness_dir}/ralphloop.sh" run --endless --json >"${tmp}/ralphloop-run-blocked.json" 2>/dev/null; then
+  echo "[test] expected blocked semantic status to fail run" >&2
+  exit 1
+fi
+python3 - <<PY
+import json
+from pathlib import Path
+payload = json.loads(Path(r"${tmp}/ralphloop-run-blocked.json").read_text(encoding="utf-8"))
+if payload.get("status") != "run_failed":
+    raise SystemExit(f"blocked semantic result must fail run: {payload}")
+if "outcome_status_non_success:blocked" not in str(payload.get("reason", "")):
+    raise SystemExit(f"unexpected reason for blocked semantic failure: {payload}")
+codes = payload.get("anomaly_codes", [])
+if "ACCEPTANCE_FAILED" not in [str(x) for x in codes]:
+    raise SystemExit(f"missing ACCEPTANCE_FAILED anomaly: {payload}")
+if payload.get("anomaly_action") != "retryable":
+    raise SystemExit(f"unexpected anomaly_action for blocked status: {payload}")
+PY
+unset BAGAKIT_AGENT_CMD
+
+echo "[test] strict outcome gate: missing outcome markers must fail"
+no_outcome_script="${tmp}/no-outcome-agent.sh"
+cat > "${no_outcome_script}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "run completed without structured outcome" >&2
+EOF
+chmod +x "${no_outcome_script}"
+export BAGAKIT_AGENT_CMD="bash '${no_outcome_script}' {prompt_file}"
+if bash "${harness_dir}/ralphloop.sh" run --endless --json >"${tmp}/ralphloop-run-no-outcome.json" 2>/dev/null; then
+  echo "[test] expected missing outcome markers to fail run" >&2
+  exit 1
+fi
+python3 - <<PY
+import json
+from pathlib import Path
+payload = json.loads(Path(r"${tmp}/ralphloop-run-no-outcome.json").read_text(encoding="utf-8"))
+if payload.get("status") != "run_failed":
+    raise SystemExit(f"missing outcome markers must fail run: {payload}")
+if "outcome_parse_failed:" not in str(payload.get("reason", "")):
+    raise SystemExit(f"unexpected reason for missing outcome markers: {payload}")
+codes = [str(x) for x in payload.get("anomaly_codes", [])]
+if "PROMPT_CONTRACT_MISSING" not in codes:
+    raise SystemExit(f"missing PROMPT_CONTRACT_MISSING anomaly: {payload}")
+if payload.get("anomaly_action") != "retryable":
+    raise SystemExit(f"unexpected anomaly_action for prompt contract missing: {payload}")
+PY
+unset BAGAKIT_AGENT_CMD
+
+echo "[test] legacy rc-only mode keeps backward compatibility"
+export BAGAKIT_LONG_RUN_LEGACY_RC_ONLY=1
+export BAGAKIT_AGENT_CMD="bash '${no_outcome_script}' {prompt_file}"
+bash "${harness_dir}/ralphloop.sh" run --endless --json >"${tmp}/ralphloop-run-legacy.json"
+python3 - <<PY
+import json
+from pathlib import Path
+payload = json.loads(Path(r"${tmp}/ralphloop-run-legacy.json").read_text(encoding="utf-8"))
+if payload.get("status") != "run_completed":
+    raise SystemExit(f"legacy mode should allow rc-only success: {payload}")
+if payload.get("legacy_rc_only") is not True:
+    raise SystemExit(f"legacy_rc_only marker missing: {payload}")
+PY
+unset BAGAKIT_AGENT_CMD
+unset BAGAKIT_LONG_RUN_LEGACY_RC_ONLY
+
+echo "[test] preflight blocks dispatch before prompt execution"
+dispatch_probe_script="${tmp}/dispatch-probe-agent.sh"
+cat > "${dispatch_probe_script}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+: "${BAGAKIT_TEST_DISPATCH_PROBE:?BAGAKIT_TEST_DISPATCH_PROBE is required}"
+printf "executed\n" >> "${BAGAKIT_TEST_DISPATCH_PROBE}"
+pass="${BAGAKIT_TEST_PASS:?BAGAKIT_TEST_PASS is required}"
+item_id="${BAGAKIT_TEST_ITEM_ID:?BAGAKIT_TEST_ITEM_ID is required}"
+cat <<JSON >&2
+<!-- LONG_RUN_OUTCOME_JSON:START -->
+{
+  "schema_version": "1",
+  "pass": "${pass}",
+  "item_id": "${item_id}",
+  "status": "done",
+  "evidence": [
+    {"type": "check", "name": "acceptance", "result": "pass", "artifact": "n/a"}
+  ],
+  "anomaly_codes": [],
+  "next_command": "bash .bagakit/long-run/check_and_resume.sh",
+  "confidence": 0.80
+}
+<!-- LONG_RUN_OUTCOME_JSON:END -->
+JSON
+EOF
+chmod +x "${dispatch_probe_script}"
+export BAGAKIT_TEST_DISPATCH_PROBE="${tmp}/dispatch-probe.log"
+export BAGAKIT_AGENT_CMD="bash '${dispatch_probe_script}' {prompt_file}"
+export BAGAKIT_LONG_RUN_CACHE_DIR="/dev/null/bagakit-cache"
+if bash "${harness_dir}/ralphloop.sh" run --endless --json >"${tmp}/ralphloop-run-preflight-fail.json" 2>/dev/null; then
+  echo "[test] expected run to fail when preflight detects unwritable env" >&2
+  exit 1
+fi
+python3 - <<PY
+import json
+from pathlib import Path
+payload = json.loads(Path(r"${tmp}/ralphloop-run-preflight-fail.json").read_text(encoding="utf-8"))
+if payload.get("status") != "run_failed":
+    raise SystemExit(f"expected run_failed for preflight gate: {payload}")
+reason = str(payload.get("reason", ""))
+if reason == "preflight_failed":
+    codes = [str(x) for x in payload.get("anomaly_codes", [])]
+    if "ENV_NO_WRITE" not in codes:
+        raise SystemExit(f"missing ENV_NO_WRITE anomaly in preflight failure: {payload}")
+    if payload.get("anomaly_action") != "blocked_stop":
+        raise SystemExit(f"unexpected anomaly_action for preflight failure: {payload}")
+elif reason == "check_and_resume_failed":
+    tail = str(payload.get("resume_stderr_tail", ""))
+    if "preflight failed" not in tail and "workspace/tmp/cache not writable" not in tail:
+        raise SystemExit(f"resume stderr should expose preflight failure details: {payload}")
+else:
+    raise SystemExit(f"unexpected reason for preflight gate failure: {payload}")
+PY
+if [[ -s "${BAGAKIT_TEST_DISPATCH_PROBE}" ]]; then
+  echo "[test] dispatch probe should stay empty when preflight fails" >&2
+  exit 1
+fi
+unset BAGAKIT_LONG_RUN_CACHE_DIR
+unset BAGAKIT_AGENT_CMD
+unset BAGAKIT_TEST_DISPATCH_PROBE
+
+echo "[test] ralph async message inbox consume + inject"
+cat > "${harness_dir}/ralph-msg.md" <<'EOF'
+please prioritize flaky test cleanup this round
+---
+after that, re-check performance hotspots
+EOF
+capture_script="${tmp}/capture-agent.sh"
+cat > "${capture_script}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+prompt_file="${1}"
+: "${BAGAKIT_TEST_CAPTURE_FILE:?BAGAKIT_TEST_CAPTURE_FILE is required}"
+: "${BAGAKIT_TEST_PASS:?BAGAKIT_TEST_PASS is required}"
+: "${BAGAKIT_TEST_ITEM_ID:?BAGAKIT_TEST_ITEM_ID is required}"
+cat "${prompt_file}" >> "${BAGAKIT_TEST_CAPTURE_FILE}"
+printf '\n<<<PROMPT-END>>>\n' >> "${BAGAKIT_TEST_CAPTURE_FILE}"
+cat <<JSON >&2
+<!-- LONG_RUN_OUTCOME_JSON:START -->
+{
+  "schema_version": "1",
+  "pass": "${BAGAKIT_TEST_PASS}",
+  "item_id": "${BAGAKIT_TEST_ITEM_ID}",
+  "status": "done",
+  "evidence": [
+    {"type": "check", "name": "acceptance", "result": "pass", "artifact": "n/a"},
+    {"type": "reflection", "name": "executor_self_review", "result": "pass", "artifact": "stdout"}
+  ],
+  "anomaly_codes": [],
+  "next_command": "bash .bagakit/long-run/check_and_resume.sh",
+  "confidence": 0.85
+}
+<!-- LONG_RUN_OUTCOME_JSON:END -->
+JSON
+EOF
+chmod +x "${capture_script}"
+export BAGAKIT_TEST_CAPTURE_FILE="${tmp}/captured-prompts.log"
+export BAGAKIT_AGENT_CMD="bash '${capture_script}' {prompt_file}"
+bash "${harness_dir}/ralphloop.sh" run --endless --json >"${tmp}/ralphloop-run-msg.json"
+python3 - <<PY
+import json
+from pathlib import Path
+payload = json.loads(Path(r"${tmp}/ralphloop-run-msg.json").read_text(encoding="utf-8"))
+if payload.get("status") != "run_completed":
+    raise SystemExit(f"expected run_completed for async msg run: {payload}")
+if not payload.get("consumed_user_message"):
+    raise SystemExit(f"expected consumed_user_message=true: {payload}")
+consumed_file = Path(str(payload.get("consumed_file", "")))
+if not consumed_file.exists():
+    raise SystemExit(f"missing consumed file: {payload}")
+PY
+grep -q "after that, re-check performance hotspots" "${harness_dir}/ralph-msg.md"
+if grep -q "please prioritize flaky test cleanup this round" "${harness_dir}/ralph-msg.md"; then
+  echo "[test] expected first async message segment to be removed after consume" >&2
+  exit 1
+fi
+grep -q "please prioritize flaky test cleanup this round" "${harness_dir}/ralph-msg.consumed.md"
+grep -q "pulse_status:" "${harness_dir}/ralph-msg.consumed.md"
+grep -q "please prioritize flaky test cleanup this round" "${tmp}/captured-prompts.log"
+unset BAGAKIT_AGENT_CMD
+unset BAGAKIT_TEST_CAPTURE_FILE
+unset BAGAKIT_TEST_PASS
+unset BAGAKIT_TEST_ITEM_ID
 
 echo "[test] ralphloop run rejects interactive cli command"
 export BAGAKIT_AGENT_CMD="codex"
