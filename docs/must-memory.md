@@ -44,7 +44,7 @@ Optional:
 3) Delete or merge duplicates; keep one canonical location.
 
 Optional helper (automation):
-- Resolve tooling: `export BAGAKIT_LIVING_DOCS_SKILL_DIR="${BAGAKIT_LIVING_DOCS_SKILL_DIR:-${BAGAKIT_HOME:-$HOME/.bagakit}/skills/bagakit-living-docs}"`
+- Resolve tooling: `export BAGAKIT_LIVING_DOCS_SKILL_DIR="<path-to-bagakit-living-docs-skill>"`
 - Create inbox entry: `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_inbox.sh" new <kind> <topic> --root . --title '<title>'`
 - Promote inbox entry: `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_inbox.sh" promote docs/.bagakit/inbox/<file>.md --root .`
 - If the curated target already exists, merge into it: `sh "$BAGAKIT_LIVING_DOCS_SKILL_DIR/scripts/bagakit_inbox.sh" promote docs/.bagakit/inbox/<file>.md --root . --merge`
